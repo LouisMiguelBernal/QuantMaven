@@ -79,8 +79,5 @@ This project is licensed under the Apache-2.0 License. See the [LICENSE](LICENSE
 
 ## Contact
 
-For inquiries, feedback, or support, please reach out to [Louis Miguel Bernal](mailto:your-email@example.com).
+For inquiries, feedback, or support, please reach out to [Louis Miguel Bernal](miguellouis.work@gmail.com).
 
----
-
-Feel free to further customize this README based on your preferences or project-specific needs.
