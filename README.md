@@ -1,7 +1,3 @@
-To modify the README to reflect your repository's structure and details accurately, I will make some adjustments based on your GitHub repository screenshot and provide an updated version of the README:
-
----
-
 # QuantMaven
 
 QuantMaven is a Streamlit-based web application designed to provide real-time insights into stock markets, technical analysis, and economic indicators. It fetches data from Yahoo Finance and other APIs to deliver comprehensive visualization and analysis tools for investors, analysts, and financial enthusiasts.
