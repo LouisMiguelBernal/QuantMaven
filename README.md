@@ -1,94 +1,90 @@
-# QuantMaven Dashboard
+To modify the README to reflect your repository's structure and details accurately, I will make some adjustments based on your GitHub repository screenshot and provide an updated version of the README:
 
-QuantMaven is a comprehensive Streamlit-based stock market and economic dashboard. It combines real-time stock data analysis, market insights, and economic metrics to help users make informed investment decisions. QuantMaven pulls data from Yahoo Finance and other APIs to visualize stock prices, indicators, economic trends, and more. 
+---
+
+# QuantMaven
+
+QuantMaven is a Streamlit-based web application designed to provide real-time insights into stock markets, technical analysis, and economic indicators. It fetches data from Yahoo Finance and other APIs to deliver comprehensive visualization and analysis tools for investors, analysts, and financial enthusiasts.
 
 ## Features
 
-- **Stock Data Analysis:**
-  - User input for stock ticker and date range.
-  - Automated adjustments for start date if the date range is less than one year.
-  - Real-time data fetched from Yahoo Finance.
-  - Candlestick charts with moving averages, Bollinger Bands, and other technical indicators.
-  - Relative Strength Index (RSI) chart.
-  - Historical stock data and metrics (Yearly Return, Volatility, etc.).
+- **Real-Time Stock Market Analysis:**
+  - Fetch stock data for specific tickers and date ranges.
+  - Real-time price charts and technical indicators (e.g., Moving Averages, Bollinger Bands, RSI).
+  - Historical performance data.
 
-- **Company Data & Financials:**
-  - Company overview, industry, sector, and website.
-  - Financial statements (Income Statement, Balance Sheet, and Cash Flow).
-  - News articles related to the stock.
+- **Company Insights:**
+  - Overview of companies, including sector, industry, and key statistics.
+  - Display of relevant company news.
 
-- **Market Overview:**
-  - S&P 500 metrics and trends with charts and moving averages.
-  - Detailed analysis of the S&P 500 index with historical performance and metrics.
+- **S&P 500 Market Overview:**
+  - Metrics and performance visualization with moving averages.
+  - Analysis of the overall S&P 500 index.
 
-- **Economic Insights:**
-  - Visualization of major economic metrics using FRED API data.
-  - Key indicators: GDP, Federal Funds Rate, Inflation Rate (CPI), and Unemployment Rate.
+- **Economic Insights and Indicators:**
+  - Integration with FRED API for GDP, interest rates, CPI (inflation), unemployment rates, and other macroeconomic data.
 
 ## Prerequisites
 
 - **Python Version**: 3.12.6
-- **Libraries**: 
-  - `streamlit`
-  - `yfinance`
-  - `plotly`
-  - `datetime`
-  - `pandas`
-  - `numpy`
-  - `Fred` API access (for economic metrics)
+- **Required Libraries**: Listed in `requirements.txt`
 
-## Setup Instructions
+## Getting Started
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/your-repo/QuantMaven.git
-   cd QuantMaven
-   ```
+### 1. Clone the repository:
+```bash
+git clone https://github.com/LouisMiguelBernal/QuantMaven.git
+cd QuantMaven
+```
 
-2. **Create a virtual environment (optional but recommended):**
-   ```bash
-   python -m venv env
-   source env/bin/activate  # For Unix-based systems
-   env\Scripts\activate  # For Windows
-   ```
+### 2. Create a virtual environment (optional):
+```bash
+python -m venv env
+source env/bin/activate  # For Unix/macOS
+env\Scripts\activate     # For Windows
+```
 
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-4. **Run the Streamlit app:**
-   ```bash
-   streamlit run QuantMaven.py
-   ```
+### 4. Run the application:
+```bash
+streamlit run QuantMaven.py
+```
 
-## Usage
-
-1. **Enter Stock Ticker**: Input the desired stock ticker (e.g., `AAPL`, `MSFT`) to fetch stock data.
-2. **Select Date Range**: Pick a start and end date for the stock data visualization.
-3. **Navigate Tabs**: Use the tabs for:
-   - **Trading Dashboard**: Stock-specific data, charts, and metrics.
-   - **Market Overview**: Insights into the S&P 500 performance.
-   - **Economic Insights**: Key economic indicators for macroeconomic analysis.
-
-## File Structure
+## Directory Structure
 
 ```
 QuantMaven/
-│
-├── QuantMaven.py                   # Main Streamlit application
-├── assets/
-│   └── stock.mp4            # Stock market informational video (optional)
-├── README.md                # Project README file
-├── requirements.txt         # Python dependencies
-└── LICENSE                  # Project license (if applicable)
+├── assets/                # Directory for assets (e.g., videos, images)
+├── LICENSE                # Project license file
+├── QuantMaven.py          # Main Streamlit application file
+├── README.md              # Project README file
+└── requirements.txt       # Python dependencies file
 ```
 
+## Usage
+
+1. **Stock Data Input**: Enter the stock ticker symbol and date range.
+2. **Analysis Tabs**:
+   - **Trading Dashboard**: View stock charts, price movements, and indicators.
+   - **Market Overview**: Get insights into S&P 500 trends.
+   - **Economic Insights**: Access macroeconomic indicators and trends.
 
 ## Contributing
 
-We welcome contributions to improve QuantMaven! Please fork the repository and submit pull requests.
+Contributions are welcome! Please fork the repository, create a new branch, and submit a pull request with your enhancements.
+
+## License
+
+This project is licensed under the Apache-2.0 License. See the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+For inquiries, feedback, or support, please reach out to [Louis Miguel Bernal](mailto:your-email@example.com).
 
 ---
 
-Thank you for using QuantMaven. We hope this tool empowers you in making data-driven market decisions!
+Feel free to further customize this README based on your preferences or project-specific needs.
