@@ -97,7 +97,7 @@ def fetch_stock_data(ticker, start, end):
     return data
 
 # Create Tabs for different sections of the dashboard
-trading_dashboard, stock_rank, market_overview, economy = st.tabs(['Trading Dashboard','Stocks Ranking', 'Market Overview', 'Economic Insights'])
+trading_dashboard, stock_rank, market_overview, economy = st.tabs(['Trading Dashboard','Stock Leaderboard', 'Market Overview', 'Economic Insights'])
 
 # Trading Dashboard Tab
 with trading_dashboard:
@@ -307,7 +307,7 @@ with stock_rank:
     {"ticker": "JPM", "name": "JPMorgan Chase & Co.", "sector": "Financials"},
     {"ticker": "UNH", "name": "UnitedHealth Group", "sector": "Healthcare"},
     {"ticker": "NVDA", "name": "NVIDIA", "sector": "Information Technology"},
-    {"ticker": "TSLA", "name": "Tesla", "sector": "Consumer Discretionary"},
+    {"ticker": "AMZN", "name": "Amazon", "sector": "Consumer Discretionary"},
     {"ticker": "PG", "name": "Procter & Gamble", "sector": "Consumer Staples"},
     {"ticker": "XOM", "name": "ExxonMobil", "sector": "Energy"},
     {"ticker": "NEE", "name": "NextEra Energy", "sector": "Utilities"},
@@ -352,8 +352,8 @@ with stock_rank:
 
     st.markdown(f"""
                     <div class="logo-and-name">
-                        <h1 style="display:inline;">Top Tech Stocks
-                            <span style="color:green"></span>
+                        <h1 style="display:inline;">Top Stocks by
+                            <span style="color:green">Sector</span>
                         </h1>
                     </div>
                 """, unsafe_allow_html=True)
