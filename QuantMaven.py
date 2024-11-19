@@ -92,36 +92,29 @@ if end_date and start_date:
 @st.cache_data
 def fetch_stock_data(ticker, start, end):
     data = yf.download(ticker, start=start, end=end)
-    # If data is empty (end date might be unavailable), fetch the most recent data
     if data.empty:
         data = yf.download(ticker, start=start, end=datetime.today())
     return data
 
 # Create Tabs for different sections of the dashboard
-trading_dashboard, market_overview, economy = st.tabs(['Trading Dashboard', 'Market Overview', 'Economic Insights'])
+trading_dashboard, stock_rank, market_overview, economy = st.tabs(['Trading Dashboard','Stock Leaderboard', 'Market Overview', 'Economic Insights'])
 
 # Trading Dashboard Tab
 with trading_dashboard:
-    # Display the video if no ticker is entered
     if not ticker:
         st.video("assets/stock.mp4")  # Replace with your video URL or file path
 
-    # Proceed to display stock data only if ticker is entered
     if ticker:
         try:
-            # Download stock data from Yahoo Finance
+            # Download stock data
             stock_data = fetch_stock_data(ticker, start_date, end_date)
             ticker_data = yf.Ticker(ticker)
             stock_info = ticker_data.info
-
-            # Fetch ticker company name
             company_name = ticker_data.info.get('longName', ticker)
-
-            # Fetch company logo URL using Clearbit API
             company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
             logo_url = f"https://logo.clearbit.com/{company_domain}"
 
-            # Display logo and company name in a horizontal layout
+            # Display company logo and name
             st.markdown(f"""
                 <div class="logo-and-name">
                     <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'">
@@ -129,91 +122,104 @@ with trading_dashboard:
                 </div>
                 """, unsafe_allow_html=True)
 
-            # Candlestick Chart with Indicators
-            fig = go.Figure()
-
             # Ensure stock data is retrieved successfully
             if not stock_data.empty:
-                # Drop NaN values and get the very last available close price
-                non_na_close = stock_data['Close'].dropna()
-                if not non_na_close.empty:
-                    latest_close_price = non_na_close.iloc[-1]
+                # Calculate indicators for charts
+                stock_data['SMA50'] = stock_data['Adj Close'].rolling(window=50).mean()
+                stock_data['SMA200'] = stock_data['Adj Close'].rolling(window=200).mean()
+                stock_data['20SMA'] = stock_data['Adj Close'].rolling(window=20).mean()
+                stock_data['Upper Band'] = stock_data['20SMA'] + (stock_data['Adj Close'].rolling(window=20).std() * 2)
+                stock_data['Lower Band'] = stock_data['20SMA'] - (stock_data['Adj Close'].rolling(window=20).std() * 2)
+                delta = stock_data['Adj Close'].diff()
+                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                rs = gain / loss
+                stock_data['RSI'] = 100 - (100 / (1 + rs))
 
-                    # Candlestick Chart and other indicators
-                    stock_data['SMA50'] = stock_data['Adj Close'].rolling(window=50).mean()
-                    stock_data['SMA200'] = stock_data['Adj Close'].rolling(window=200).mean()
+                # Candlestick Chart
+                fig = go.Figure()
+                candlestick_trace = go.Candlestick(
+                    x=stock_data.index,
+                    open=stock_data['Open'],
+                    high=stock_data['High'],
+                    low=stock_data['Low'],
+                    close=stock_data['Adj Close'],
+                    name='Candlestick',
+                    increasing_line_color='green',
+                    decreasing_line_color='red'
+                )
+                fig.add_trace(candlestick_trace)
+                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['SMA50'], mode='lines', name='SMA 50', line=dict(color='blue')))
+                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['SMA200'], mode='lines', name='SMA 200', line=dict(color='yellow')))
+                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Upper Band'], mode='lines', name='Upper Band', line=dict(color='lightblue')))
+                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Lower Band'], mode='lines', name='Lower Band', line=dict(color='slategrey')))
+                fig.update_layout(title=f'{ticker} Chart', xaxis_title='Date', yaxis_title='Price', width=1700, height=700)
+                st.plotly_chart(fig)
 
-                    stock_data['20SMA'] = stock_data['Adj Close'].rolling(window=20).mean()
-                    stock_data['Upper Band'] = stock_data['20SMA'] + (stock_data['Adj Close'].rolling(window=20).std() * 2)
-                    stock_data['Lower Band'] = stock_data['20SMA'] - (stock_data['Adj Close'].rolling(window=20).std() * 2)
+                # RSI Chart
+                fig_rsi = go.Figure(go.Scatter(x=stock_data.index, y=stock_data['RSI'], mode='lines', name='RSI', line=dict(color='orange')))
+                fig_rsi.update_layout(title='RSI', xaxis_title='Date', yaxis_title='RSI', width=1700, height=300, yaxis=dict(range=[0, 100]))
+                st.plotly_chart(fig_rsi)
 
-                    delta = stock_data['Adj Close'].diff()
-                    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-                    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-                    rs = gain / loss
-                    stock_data['RSI'] = 100 - (100 / (1 + rs))
-
-                    # Create Candlestick Chart
-                    candlestick_trace = go.Candlestick(
-                        x=stock_data.index,
-                        open=stock_data['Open'],
-                        high=stock_data['High'],
-                        low=stock_data['Low'],
-                        close=stock_data['Adj Close'],
-                        name='Candlestick',
-                        increasing_line_color='green',
-                        decreasing_line_color='red'
-                    )
-
-                    sma50_trace = go.Scatter(x=stock_data.index, y=stock_data['SMA50'], mode='lines', name='SMA 50', line=dict(color='blue'))
-                    sma200_trace = go.Scatter(x=stock_data.index, y=stock_data['SMA200'], mode='lines', name='SMA 200', line=dict(color='yellow'))
-
-                    upper_band_trace = go.Scatter(x=stock_data.index, y=stock_data['Upper Band'], mode='lines', name='Upper Band', line=dict(color='lightblue'))
-                    lower_band_trace = go.Scatter(x=stock_data.index, y=stock_data['Lower Band'], mode='lines', name='Lower Band', line=dict(color='slategrey'))
-
-                    fig = go.Figure(data=[candlestick_trace, sma50_trace, sma200_trace, upper_band_trace, lower_band_trace])
-                    fig.update_layout(title=f'{ticker} Chart', xaxis_title='Date', yaxis_title='Price', width=1700, height=700)
-
-                    st.plotly_chart(fig)
-
-                    # RSI Chart
-                    rsi_trace = go.Scatter(x=stock_data.index, y=stock_data['RSI'], mode='lines', name='RSI', line=dict(color='orange'))
-                    fig_rsi = go.Figure(data=[rsi_trace])
-                    fig_rsi.update_layout(title='RSI', xaxis_title='Date', yaxis_title='RSI', width=1700, height=300, yaxis=dict(range=[0, 100]))
-
-                    st.plotly_chart(fig_rsi)
-
-                # Stock Overview, Company Data, and Stock News tabs
+                # Stock Overview Tab
                 stock_overview, company_data, stock_update = st.tabs(['Stock Overview', 'Company Data', 'Stock News'])
 
                 with stock_overview:
-                    st.markdown(f"""
-                        <div class="logo-and-name" style="margin-bottom: 20px;">
-                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                                {company_name} <span style="color: green;">Metrics</span>
-                            </h2>
-                        </div>
-                        """, unsafe_allow_html=True)
+                                st.markdown(f"""
+                    <div class="logo-and-name" style="margin-bottom: 20px;">
+                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
+                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                            {company_name} <span style="color: green;">Metrics</span>
+                        </h2>
+                    </div>
+                """, unsafe_allow_html=True)
 
-                    # Add percentage change calculation
-                    new_stock = stock_data.copy()
-                    new_stock['Percent Change'] = stock_data['Adj Close'].pct_change()
-                    new_stock.dropna(inplace=True)
-                    
-                    yearly_return = new_stock['Percent Change'].mean() * 252 * 100
-                    volatility = new_stock['Percent Change'].std() * (252**0.5) * 100  # Annualized volatility
-                    avg_daily_return = new_stock['Percent Change'].mean() * 100
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    col1.metric(label='Yearly Return', value=f'{yearly_return:.2f}%')
-                    col2.metric('Annualized Volatility', f'{volatility:.2f}%')
-                    col3.metric('Average Daily Return', f'{avg_daily_return:.2f}%')
-                    col4.metric("Market Cap", stock_info.get("marketCap", "N/A"))
+                # Isolated DataFrame for Average Daily Return
+                avg_daily_stock = stock_data[['Adj Close']].copy()
+                avg_daily_stock['Percent Change'] = avg_daily_stock['Adj Close'].pct_change()
+                avg_daily_stock.dropna(inplace=True)
+                avg_daily_return = avg_daily_stock['Percent Change'].mean() * 100
 
-                    st.subheader('Stock Information Chart')
-                    st.dataframe(new_stock)
+                # Separate DataFrame for other metrics calculations
+                new_stock = stock_data[['Adj Close', 'Close']].copy()
+                new_stock['Percent Change'] = new_stock['Adj Close'].pct_change()
+                new_stock.dropna(inplace=True)
 
+                yearly_return = new_stock['Percent Change'].mean() * 252 * 100
+                volatility = new_stock['Percent Change'].std() * (252**0.5) * 100  # Annualized volatility
+
+                # Max profit calculation with dynamic programming
+                prices = stock_data['Close'].dropna().tolist()
+                start = 0
+                end = len(prices) - 1
+
+                def max_profit(prices, start, end, memo=None):
+                    if memo is None:
+                        memo = {}
+                    if end <= start:
+                        return 0
+                    if (start, end) in memo:
+                        return memo[(start, end)]
+                    max_profit_val = 0
+                    for i in range(start + 1, end + 1):
+                        profit = prices[i] - prices[start] + max_profit(prices, i + 1, end, memo)
+                        max_profit_val = max(max_profit_val, profit)
+                    memo[(start, end)] = max_profit_val
+                    return max_profit_val
+
+                max_profit_val = max_profit(prices, start, end)
+
+                # Display metrics in columns
+                col1, col2, col3, col4, col5 = st.columns(5)
+                col1.metric('Max Profit', f'{max_profit_val:.2f}')
+                col2.metric(label='Yearly Return', value=f'{yearly_return:.2f}%')
+                col3.metric('Annualized Volatility', f'{volatility:.2f}%')
+                col4.metric('Average Daily Return', f'{avg_daily_return:.2f}%')
+                col5.metric("Market Cap", stock_info.get("marketCap", "N/A"))
+
+                st.subheader('Stock Information Chart')
+                st.dataframe(new_stock)
+                
                 # Company Data tab - display financials
                 with company_data:
                     try:
@@ -263,7 +269,7 @@ with trading_dashboard:
                     except Exception as e:
                         st.error(f"An error occurred while fetching financials: {e}")
 
-                # Stock Update tab (Stock News)
+                # Stock News
                 with stock_update:
                     st.markdown(f"""
                         <div class="logo-and-name" style="margin-bottom: 20px;">
@@ -292,6 +298,95 @@ with trading_dashboard:
 
         except Exception as e:
             st.error(f'Error fetching data for {ticker}. Please check the ticker symbol or try again later. Error: {str(e)}')
+
+# Stock Ranking            
+with stock_rank:
+    # Define stock list data
+    stock_list = [
+    {"ticker": "JPM", "name": "JPMorgan Chase & Co.", "sector": "Financials"},
+    {"ticker": "UNH", "name": "UnitedHealth Group", "sector": "Healthcare"},
+    {"ticker": "NVDA", "name": "NVIDIA", "sector": "Information Technology"},
+    {"ticker": "AMZN", "name": "Amazon", "sector": "Consumer Discretionary"},
+    {"ticker": "PG", "name": "Procter & Gamble", "sector": "Consumer Staples"},
+    {"ticker": "XOM", "name": "ExxonMobil", "sector": "Energy"},
+    {"ticker": "NEE", "name": "NextEra Energy", "sector": "Utilities"},
+    {"ticker": "PLD", "name": "Prologis", "sector": "Real Estate"},
+    {"ticker": "SHW", "name": "Sherwin-Williams", "sector": "Materials"},
+    {"ticker": "CAT", "name": "Caterpillar", "sector": "Industrials"},
+]
+
+
+    # Fetch stock data, display company logo, and calculate average daily return
+    stocks_data = []
+
+    for stock in stock_list:
+            ticker = stock['ticker']
+            stock_data = fetch_stock_data(ticker, start_date, end_date)
+            
+            # Fetch company information and logo
+            ticker_data = yf.Ticker(ticker)
+            stock_info = ticker_data.info
+            company_name = stock_info.get('longName', ticker)
+            company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
+            logo_url = f"https://logo.clearbit.com/{company_domain}"
+            
+            # Calculate Average Daily Return 
+            avg_daily_stock = stock_data.copy()
+            avg_daily_stock['Percent Change'] = avg_daily_stock['Adj Close'].pct_change()
+            avg_daily_stock.dropna(inplace=True)
+            avg_daily_return = avg_daily_stock['Percent Change'].mean() * 100
+
+            # Get current price
+            current_price = stock_data['Close'].dropna().iloc[-1]  
+
+            # Store stock data with calculated values
+            stock['avg_daily_return'] = avg_daily_return
+            stock['current_price'] = current_price
+            stock['logo_url'] = logo_url
+            stock['company_name'] = company_name
+            stocks_data.append(stock)
+
+    # Sort stocks by average daily return (stock rank algorithm)
+    sorted_stocks = sorted(stocks_data, key=lambda x: x['avg_daily_return'], reverse=True)
+
+    st.markdown(f"""
+                    <div class="logo-and-name">
+                        <h1 style="display:inline;">Top Tech Stocks
+                            <span style="color:green"></span>
+                        </h1>
+                    </div>
+                """, unsafe_allow_html=True)
+
+    # Display headers for metrics
+    col1, col2, col3, col4 = st.columns([1, 3, 1, 2])  # Adjust column widths
+    with col3:
+        st.markdown("""
+            <span style='font-weight:bold; font-size:20px; margin-left:-60px;'>Average Daily </span>
+            <span style='color:green; font-weight:bold; font-size:20px;'>Return</span>
+        """, unsafe_allow_html=True)
+
+    with col4:
+        st.markdown("""
+            <span style='font-weight:bold; font-size:20px; margin-left:-20px;'>Current </span>
+            <span style='color:green; font-weight:bold; font-size:20px;'>Price</span>
+        """, unsafe_allow_html=True)
+
+    # Layout: display logo, name, and metrics
+    for stock in sorted_stocks:
+        # Create columns for logo, company name, and metrics
+        col1, col2, col3, col4 = st.columns([1, 3, 1, 2])  # Adjust the column widths
+
+        with col1:
+            st.image(stock['logo_url'], width=50, output_format='auto')
+
+        with col2:
+            st.markdown(f"**<span style='font-size: 24px'>{stock['company_name']}**", unsafe_allow_html=True)
+
+        with col3:
+            st.markdown(f"**<span style='font-size: 24px'>{stock['avg_daily_return']:.2f}%</span>**", unsafe_allow_html=True)
+
+        with col4:
+            st.markdown(f"**<span style='font-size: 24px'>${stock['current_price']:.2f}</span>**", unsafe_allow_html=True)
 
 # Market Overview Tab
 with market_overview:
@@ -463,6 +558,7 @@ with economy:
         - The unemployment rate measures the percentage of the total labor force that is unemployed but actively seeking employment. It's a vital indicator of labor market conditions and overall economic stability.
     """
     st.write(econ_info)
+
 
 # Link to Font Awesome CSS for icons
 st.markdown('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">', unsafe_allow_html=True)
