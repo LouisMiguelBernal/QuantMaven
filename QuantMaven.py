@@ -97,7 +97,7 @@ def fetch_stock_data(ticker, start, end):
     return data
 
 # Create Tabs for different sections of the dashboard
-trading_dashboard, stock_rank, market_overview, economy = st.tabs(['Trading Dashboard','Stock Leaderboard', 'Market Overview', 'Economic Insights'])
+trading_dashboard, stock_rank, market_overview, economy = st.tabs(['Trading Dashboard','Stocks Ranking', 'Market Overview', 'Economic Insights'])
 
 # Trading Dashboard Tab
 with trading_dashboard:
@@ -165,61 +165,62 @@ with trading_dashboard:
                 stock_overview, company_data, stock_update = st.tabs(['Stock Overview', 'Company Data', 'Stock News'])
 
                 with stock_overview:
-                                st.markdown(f"""
-                    <div class="logo-and-name" style="margin-bottom: 20px;">
-                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                            {company_name} <span style="color: green;">Metrics</span>
-                        </h2>
-                    </div>
-                """, unsafe_allow_html=True)
+                    st.markdown(f"""
+                        <div class="logo-and-name" style="margin-bottom: 20px;">
+                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
+                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                                {company_name} <span style="color: green;">Metrics</span>
+                            </h2>
+                        </div>
+                    """, unsafe_allow_html=True)
 
-                # Isolated DataFrame for Average Daily Return
-                avg_daily_stock = stock_data[['Adj Close']].copy()
-                avg_daily_stock['Percent Change'] = avg_daily_stock['Adj Close'].pct_change()
-                avg_daily_stock.dropna(inplace=True)
-                avg_daily_return = avg_daily_stock['Percent Change'].mean() * 100
+                    # Isolated DataFrame for Average Daily Return
+                    avg_daily_stock = stock_data[['Adj Close']].copy()
+                    avg_daily_stock['Percent Change'] = avg_daily_stock['Adj Close'].pct_change()
+                    avg_daily_stock.dropna(inplace=True)
+                    avg_daily_return = avg_daily_stock['Percent Change'].mean() * 100
 
-                # Separate DataFrame for other metrics calculations
-                new_stock = stock_data[['Adj Close', 'Close']].copy()
-                new_stock['Percent Change'] = new_stock['Adj Close'].pct_change()
-                new_stock.dropna(inplace=True)
+                    # Separate DataFrame for other metrics calculations
+                    new_stock = stock_data.copy()
+                    new_stock['Percent Change'] = new_stock['Adj Close'].pct_change()
+                    new_stock.dropna(inplace=True)
 
-                yearly_return = new_stock['Percent Change'].mean() * 252 * 100
-                volatility = new_stock['Percent Change'].std() * (252**0.5) * 100  # Annualized volatility
+                    yearly_return = new_stock['Percent Change'].mean() * 252 * 100
+                    volatility = new_stock['Percent Change'].std() * (252**0.5) * 100  # Annualized volatility
 
-                # Max profit calculation with dynamic programming
-                prices = stock_data['Close'].dropna().tolist()
-                start = 0
-                end = len(prices) - 1
+                    # Max profit calculation with dynamic programming
+                    prices = stock_data['Close'].dropna().tolist()
+                    start = 0
+                    end = len(prices) - 1
 
-                def max_profit(prices, start, end, memo=None):
-                    if memo is None:
-                        memo = {}
-                    if end <= start:
-                        return 0
-                    if (start, end) in memo:
-                        return memo[(start, end)]
-                    max_profit_val = 0
-                    for i in range(start + 1, end + 1):
-                        profit = prices[i] - prices[start] + max_profit(prices, i + 1, end, memo)
-                        max_profit_val = max(max_profit_val, profit)
-                    memo[(start, end)] = max_profit_val
-                    return max_profit_val
+                    def max_profit(prices, start, end, memo=None):
+                        if memo is None:
+                            memo = {}
+                        if end <= start:
+                            return 0
+                        if (start, end) in memo:
+                            return memo[(start, end)]
+                        max_profit_val = 0
+                        for i in range(start + 1, end + 1):
+                            profit = prices[i] - prices[start] + max_profit(prices, i + 1, end, memo)
+                            max_profit_val = max(max_profit_val, profit)
+                        memo[(start, end)] = max_profit_val
+                        return max_profit_val
 
-                max_profit_val = max_profit(prices, start, end)
+                    max_profit_val = max_profit(prices, start, end)
 
-                # Display metrics in columns
-                col1, col2, col3, col4, col5 = st.columns(5)
-                col1.metric('Max Profit', f'{max_profit_val:.2f}')
-                col2.metric(label='Yearly Return', value=f'{yearly_return:.2f}%')
-                col3.metric('Annualized Volatility', f'{volatility:.2f}%')
-                col4.metric('Average Daily Return', f'{avg_daily_return:.2f}%')
-                col5.metric("Market Cap", stock_info.get("marketCap", "N/A"))
+                    # Display metrics in columns
+                    col1, col2, col3, col4, col5 = st.columns(5)
+                    col1.metric('Max Profit', f'{max_profit_val:.2f}')
+                    col2.metric(label='Yearly Return', value=f'{yearly_return:.2f}%')
+                    col3.metric('Annualized Volatility', f'{volatility:.2f}%')
+                    col4.metric('Average Daily Return', f'{avg_daily_return:.2f}%')
+                    col5.metric("Market Cap", stock_info.get("marketCap", "N/A"))
 
-                st.subheader('Stock Information Chart')
-                st.dataframe(new_stock)
-                
+                    st.subheader('Stock Information Chart')
+                    st.dataframe(new_stock)
+
+
                 # Company Data tab - display financials
                 with company_data:
                     try:
@@ -306,7 +307,7 @@ with stock_rank:
     {"ticker": "JPM", "name": "JPMorgan Chase & Co.", "sector": "Financials"},
     {"ticker": "UNH", "name": "UnitedHealth Group", "sector": "Healthcare"},
     {"ticker": "NVDA", "name": "NVIDIA", "sector": "Information Technology"},
-    {"ticker": "AMZN", "name": "Amazon", "sector": "Consumer Discretionary"},
+    {"ticker": "TSLA", "name": "Tesla", "sector": "Consumer Discretionary"},
     {"ticker": "PG", "name": "Procter & Gamble", "sector": "Consumer Staples"},
     {"ticker": "XOM", "name": "ExxonMobil", "sector": "Energy"},
     {"ticker": "NEE", "name": "NextEra Energy", "sector": "Utilities"},
