@@ -188,7 +188,7 @@ with trading_dashboard:
                     yearly_return = new_stock['Percent Change'].mean() * 252 * 100
                     volatility = new_stock['Percent Change'].std() * (252**0.5) * 100  # Annualized volatility
 
-                    # Max profit calculation with dynamic programming
+                    # Max profit calculation with (Dynamic programming- Top Down Memoization)
                     prices = stock_data['Close'].dropna().tolist()
                     start = 0
                     end = len(prices) - 1
@@ -300,55 +300,81 @@ with trading_dashboard:
         except Exception as e:
             st.error(f'Error fetching data for {ticker}. Please check the ticker symbol or try again later. Error: {str(e)}')
 
-# Stock Ranking            
+# Stock Ranking (Divide & Conquer - Merge Sort)           
 with stock_rank:
     # Define stock list data
-    stock_list = [
-    {"ticker": "JPM", "name": "JPMorgan Chase & Co.", "sector": "Financials"},
-    {"ticker": "UNH", "name": "UnitedHealth Group", "sector": "Healthcare"},
-    {"ticker": "NVDA", "name": "NVIDIA", "sector": "Information Technology"},
-    {"ticker": "AMZN", "name": "Amazon", "sector": "Consumer Discretionary"},
-    {"ticker": "PG", "name": "Procter & Gamble", "sector": "Consumer Staples"},
-    {"ticker": "XOM", "name": "ExxonMobil", "sector": "Energy"},
-    {"ticker": "NEE", "name": "NextEra Energy", "sector": "Utilities"},
-    {"ticker": "PLD", "name": "Prologis", "sector": "Real Estate"},
-    {"ticker": "SHW", "name": "Sherwin-Williams", "sector": "Materials"},
-    {"ticker": "CAT", "name": "Caterpillar", "sector": "Industrials"},
-]
+    def merge_sort(stocks, key):
+    # Base case: if the list has 1 or 0 elements, it's already sorted
+        if len(stocks) <= 1:
+            return stocks
 
+        # Split the list into halves
+        mid = len(stocks) // 2
+        left_half = merge_sort(stocks[:mid], key)
+        right_half = merge_sort(stocks[mid:], key)
+
+        # Merge the sorted halves
+        return merge(left_half, right_half, key)
+
+    def merge(left, right, key):
+        sorted_list = []
+        while left and right:
+            # Sort by the provided key in descending order
+            if left[0][key] >= right[0][key]:
+                sorted_list.append(left.pop(0))
+            else:
+                sorted_list.append(right.pop(0))
+
+        # Append remaining elements
+        sorted_list.extend(left or right)
+        return sorted_list
+
+    # Define stock list data
+    stock_list = [
+        {"ticker": "JPM", "name": "JPMorgan Chase & Co.", "sector": "Financials"},
+        {"ticker": "UNH", "name": "UnitedHealth Group", "sector": "Healthcare"},
+        {"ticker": "NVDA", "name": "NVIDIA", "sector": "Information Technology"},
+        {"ticker": "AMZN", "name": "Amazon", "sector": "Consumer Discretionary"},
+        {"ticker": "PG", "name": "Procter & Gamble", "sector": "Consumer Staples"},
+        {"ticker": "XOM", "name": "ExxonMobil", "sector": "Energy"},
+        {"ticker": "NEE", "name": "NextEra Energy", "sector": "Utilities"},
+        {"ticker": "PLD", "name": "Prologis", "sector": "Real Estate"},
+        {"ticker": "SHW", "name": "Sherwin-Williams", "sector": "Materials"},
+        {"ticker": "CAT", "name": "Caterpillar", "sector": "Industrials"},
+    ]
 
     # Fetch stock data, display company logo, and calculate average daily return
     stocks_data = []
 
     for stock in stock_list:
-            ticker = stock['ticker']
-            stock_data = fetch_stock_data(ticker, start_date, end_date)
-            
-            # Fetch company information and logo
-            ticker_data = yf.Ticker(ticker)
-            stock_info = ticker_data.info
-            company_name = stock_info.get('longName', ticker)
-            company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
-            logo_url = f"https://logo.clearbit.com/{company_domain}"
-            
-            # Calculate Average Daily Return 
-            avg_daily_stock = stock_data.copy()
-            avg_daily_stock['Percent Change'] = avg_daily_stock['Adj Close'].pct_change()
-            avg_daily_stock.dropna(inplace=True)
-            avg_daily_return = avg_daily_stock['Percent Change'].mean() * 100
+        ticker = stock['ticker']
+        stock_data = fetch_stock_data(ticker, start_date, end_date)
+        
+        # Fetch company information and logo
+        ticker_data = yf.Ticker(ticker)
+        stock_info = ticker_data.info
+        company_name = stock_info.get('longName', ticker)
+        company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
+        logo_url = f"https://logo.clearbit.com/{company_domain}"
+        
+        # Calculate Average Daily Return 
+        avg_daily_stock = stock_data.copy()
+        avg_daily_stock['Percent Change'] = avg_daily_stock['Adj Close'].pct_change()
+        avg_daily_stock.dropna(inplace=True)
+        avg_daily_return = avg_daily_stock['Percent Change'].mean() * 100
 
-            # Get current price
-            current_price = stock_data['Close'].dropna().iloc[-1]  
+        # Get current price
+        current_price = stock_data['Close'].dropna().iloc[-1]  
 
-            # Store stock data with calculated values
-            stock['avg_daily_return'] = avg_daily_return
-            stock['current_price'] = current_price
-            stock['logo_url'] = logo_url
-            stock['company_name'] = company_name
-            stocks_data.append(stock)
+        # Store stock data with calculated values
+        stock['avg_daily_return'] = avg_daily_return
+        stock['current_price'] = current_price
+        stock['logo_url'] = logo_url
+        stock['company_name'] = company_name
+        stocks_data.append(stock)
 
-    # Sort stocks by average daily return (stock rank algorithm)
-    sorted_stocks = sorted(stocks_data, key=lambda x: x['avg_daily_return'], reverse=True)
+    # Sort stocks by average daily return using Merge Sort
+    sorted_stocks = merge_sort(stocks_data, key='avg_daily_return')
 
     st.markdown(f"""
                     <div class="logo-and-name">
