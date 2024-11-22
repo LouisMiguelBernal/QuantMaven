@@ -2,6 +2,8 @@
 
 QuantMaven is a Streamlit-based web application designed to provide real-time insights into stock markets, technical analysis, and economic indicators. It fetches data from Yahoo Finance and other APIs to deliver comprehensive visualization and analysis tools for investors, analysts, and financial enthusiasts.
 
+## Web Application Link: https://quantmaven.streamlit.app/
+
 ## Features
 
 - **Real-Time Stock Market Analysis:**
