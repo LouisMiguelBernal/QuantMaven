@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from fredapi import Fred
 import requests
+import base64
 
 # Set the page title and layout
 st.set_page_config(page_title='QuantMaven',
@@ -55,20 +56,25 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-logo_path = r"assets/logo.png"
+# Function to convert image to base64
+def get_base64_image(image_path):
+    with open(image_path, "rb") as image_file:
+        encoded = base64.b64encode(image_file.read()).decode()
+    return encoded
 
-if os.path.exists(logo_path):
-    colmn1, colmn2 = st.columns([0.5, 7])  
+# Convert logo to base64
+logo_base64 = get_base64_image('assets/logo.png')
 
-    with colmn1:
-        # Use st.image with a centered style
-        st.image(logo_path, width=150, use_column_width='auto')
-
-    with colmn2:
-        st.markdown('<h1 class="body">Quant<span class="green">Maven</span></h1>', unsafe_allow_html=True)
-else:
-    st.error(f"File not found: {logo_path}")
-
+# Display the logo and title using HTML with added margin/padding to move it down
+st.markdown(
+    f"""
+    <div style="display: flex; align-items: center; padding-top: 50px;">
+        <img src="data:image/png;base64,{logo_base64}" style="width: 80px; height: auto; margin-right: 10px;">
+        <h1 style="margin: 0;">Quant<span style="color:green;">Maven</span></h1>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # Create columns for inputs
 col1, col2, col3 = st.columns(3)
@@ -590,20 +596,23 @@ with economy:
 # Link to Font Awesome CSS for icons
 st.markdown('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">', unsafe_allow_html=True)
 
-# Footer content
-footer = """
+# Footer content with logo and title moved down
+footer = f"""
 <hr>
 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; padding: 10px 0;">
-  <!-- QuantMaven Title -->
-  <div style="flex-grow: 1; text-align: left;">
-    <h1 class="body" style="margin: 0;">Quant<span class="green">Maven</span></h1>
+  <!-- QuantMaven Title and Logo -->
+  <div style="flex-grow: 1; text-align: left; padding-top: 20px;">
+    <div style="display: flex; align-items: center;">
+        <img src="data:image/png;base64,{logo_base64}" style="width: 80px; height: auto; margin-right: 10px;">
+        <h1 style="margin: 0;">Quant<span style="color:green;">Maven</span></h1>
+    </div>
   </div>
   <!-- Copyright -->
-  <div style="flex-grow: 1; text-align: center;">
+  <div style="flex-grow: 1; text-align: center; padding-top: 20px;">
     <span>Copyright 2024 | All Rights Reserved</span>
   </div>
   <!-- Social media icons -->
-  <div style="flex-grow: 1; text-align: right;">
+  <div style="flex-grow: 1; text-align: right; padding-top: 20px;">
     <a href="https://www.linkedin.com" class="fa fa-linkedin" style="padding: 10px; font-size: 24px; background: #0077B5; color: white; text-decoration: none; margin: 5px;"></a>
     <a href="https://www.instagram.com" class="fa fa-instagram" style="padding: 10px; font-size: 24px; background: #E1306C; color: white; text-decoration: none; margin: 5px;"></a>
     <a href="https://www.youtube.com" class="fa fa-youtube" style="padding: 10px; font-size: 24px; background: #FF0000; color: white; text-decoration: none; margin: 5px;"></a>
