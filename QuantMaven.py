@@ -108,6 +108,7 @@ trading_dashboard, stock_rank, market_overview, economy = st.tabs(['Trading Dash
 # Trading Dashboard Tab
 with trading_dashboard:
     if not ticker:
+        st.markdown("<h1>Money Talks We <span style='color:green'> TRANSLATE</span></h1>", unsafe_allow_html=True)
         st.video("assets/stock.mp4")  # Replace with your video URL or file path
 
     if ticker:
@@ -420,6 +421,19 @@ with stock_rank:
 
         with col4:
             st.markdown(f"**<span style='font-size: 24px'>${stock['current_price']:.2f}</span>**", unsafe_allow_html=True)
+        # Add S&P 500 Information
+    sector_info = """
+        The companies in this portfolio are influential across their sectors, providing key insights into broader economic trends. JPMorgan Chase & Co. (JPM) serves as a bellwether for the Financials sector, where its performance reflects the stability of credit markets and economic growth. UnitedHealth Group (UNH) leads the Healthcare sector, shaping policy and spending in healthcare, while NVIDIA (NVDA) drives technological advancement in AI and semiconductors, impacting industries such as cloud computing, gaming, and AI. Similarly, Amazon (AMZN) influences consumer behavior and retail trends within the Consumer Discretionary sector, making it a critical indicator of consumer spending.
+
+        In the Consumer Staples sector, Procter & Gamble (PG) offers valuable insight into consumer habits for essential goods, serving as a benchmark during economic downturns. ExxonMobil (XOM) dominates the Energy sector, with its stock being sensitive to commodity prices, geopolitics, and shifts toward renewable energy. NextEra Energy (NEE) in the Utilities sector highlights the growing role of renewable energy in shaping sustainable infrastructure. Meanwhile, Prologis (PLD) in Real Estate provides a clear signal of global trade and logistics demand, tied to macroeconomic health and e-commerce growth.
+
+        Companies like Sherwin-Williams (SHW) and Caterpillar (CAT) play pivotal roles in Materials and Industrials, respectively. Sherwin-Williams reflects trends in construction and manufacturing, while Caterpillar's performance signals the health of global infrastructure, mining, and capital spending. Together, these companies offer a comprehensive view of the forces shaping the global economy, from consumer behavior and technological innovation to energy markets and infrastructure development. By tracking their performance, investors can gauge both sector-specific dynamics and broader economic conditions.
+    """
+    st.markdown("""
+    # Stock <span style="color: green;">Sector</span>
+    """, unsafe_allow_html=True)
+    
+    st.write(sector_info)
 
 # Market Overview Tab
 with market_overview:
@@ -480,7 +494,7 @@ with market_overview:
         yaxis_title='Price',
         width=1700,
         height=700,
-        template='plotly_dark'  # Optional: Change template to dark for better contrast
+        template='plotly_dark'  
     )
 
     # Show the Plotly chart
