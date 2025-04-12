@@ -135,12 +135,12 @@ with trading_dashboard:
             # Ensure stock data is retrieved successfully
             if not stock_data.empty:
                 # Calculate indicators for charts
-                stock_data['SMA50'] = stock_data['Adj Close'].rolling(window=50).mean()
-                stock_data['SMA200'] = stock_data['Adj Close'].rolling(window=200).mean()
-                stock_data['20SMA'] = stock_data['Adj Close'].rolling(window=20).mean()
-                stock_data['Upper Band'] = stock_data['20SMA'] + (stock_data['Adj Close'].rolling(window=20).std() * 2)
-                stock_data['Lower Band'] = stock_data['20SMA'] - (stock_data['Adj Close'].rolling(window=20).std() * 2)
-                delta = stock_data['Adj Close'].diff()
+                stock_data['SMA50'] = stock_data['Close'].rolling(window=50).mean()
+                stock_data['SMA200'] = stock_data['Close'].rolling(window=200).mean()
+                stock_data['20SMA'] = stock_data['Close'].rolling(window=20).mean()
+                stock_data['Upper Band'] = stock_data['20SMA'] + (stock_data['Close'].rolling(window=20).std() * 2)
+                stock_data['Lower Band'] = stock_data['20SMA'] - (stock_data['Close'].rolling(window=20).std() * 2)
+                delta = stock_data['Close'].diff()
                 gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
                 loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
                 rs = gain / loss
@@ -153,7 +153,7 @@ with trading_dashboard:
                     open=stock_data['Open'],
                     high=stock_data['High'],
                     low=stock_data['Low'],
-                    close=stock_data['Adj Close'],
+                    close=stock_data['Close'],
                     name='Candlestick',
                     increasing_line_color='green',
                     decreasing_line_color='red'
@@ -185,14 +185,14 @@ with trading_dashboard:
                     """, unsafe_allow_html=True)
 
                     # Isolated DataFrame for Average Daily Return
-                    avg_daily_stock = stock_data[['Adj Close']].copy()
-                    avg_daily_stock['Percent Change'] = avg_daily_stock['Adj Close'].pct_change()
+                    avg_daily_stock = stock_data[['Close']].copy()
+                    avg_daily_stock['Percent Change'] = avg_daily_stock['Close'].pct_change()
                     avg_daily_stock.dropna(inplace=True)
                     avg_daily_return = avg_daily_stock['Percent Change'].mean() * 100
 
                     # Separate DataFrame for other metrics calculations
                     new_stock = stock_data.copy()
-                    new_stock['Percent Change'] = new_stock['Adj Close'].pct_change()
+                    new_stock['Percent Change'] = new_stock['Close'].pct_change()
                     new_stock.dropna(inplace=True)
 
                     yearly_return = new_stock['Percent Change'].mean() * 252 * 100
@@ -369,7 +369,7 @@ with stock_rank:
         
         # Calculate Average Daily Return 
         avg_daily_stock = stock_data.copy()
-        avg_daily_stock['Percent Change'] = avg_daily_stock['Adj Close'].pct_change()
+        avg_daily_stock['Percent Change'] = avg_daily_stock['Close'].pct_change()
         avg_daily_stock.dropna(inplace=True)
         avg_daily_return = avg_daily_stock['Percent Change'].mean() * 100
 
@@ -470,10 +470,10 @@ with market_overview:
         st.markdown(f"Error fetching data for S&P 500. Please try again later. Error: {e}")
 
     # S&P 500 Chart with Moving Averages and Bollinger Bands
-    sp500['50_MA'] = sp500['Adj Close'].rolling(window=50).mean()
-    sp500['200_MA'] = sp500['Adj Close'].rolling(window=200).mean()
-    sp500['20_MA'] = sp500['Adj Close'].rolling(window=20).mean()
-    sp500['stddev'] = sp500['Adj Close'].rolling(window=20).std()
+    sp500['50_MA'] = sp500['Close'].rolling(window=50).mean()
+    sp500['200_MA'] = sp500['Close'].rolling(window=200).mean()
+    sp500['20_MA'] = sp500['Close'].rolling(window=20).mean()
+    sp500['stddev'] = sp500['Close'].rolling(window=20).std()
     sp500['Upper_Band'] = sp500['20_MA'] + (sp500['stddev'] * 2)
     sp500['Lower_Band'] = sp500['20_MA'] - (sp500['stddev'] * 2)
 
@@ -484,7 +484,7 @@ with market_overview:
     fig_sp = go.Figure()
 
     # Add traces to the plot
-    fig_sp.add_trace(go.Scatter(x=sp500_cleaned.index, y=sp500_cleaned['Adj Close'], mode='lines', name='Adj Close', line=dict(color='green')))
+    fig_sp.add_trace(go.Scatter(x=sp500_cleaned.index, y=sp500_cleaned['Close'], mode='lines', name='Close', line=dict(color='green')))
     fig_sp.add_trace(go.Scatter(x=sp500_cleaned.index, y=sp500_cleaned['50_MA'], mode='lines', name='SMA 50', line=dict(color='blue')))
     fig_sp.add_trace(go.Scatter(x=sp500_cleaned.index, y=sp500_cleaned['200_MA'], mode='lines', name='SMA 200', line=dict(color='yellow')))
     fig_sp.add_trace(go.Scatter(x=sp500_cleaned.index, y=sp500_cleaned['Upper_Band'], mode='lines', name='Upper Band', line=dict(color='lightblue')))
@@ -513,7 +513,7 @@ with market_overview:
 
     # Add percentage change calculation
     new_stock = sp500.copy()
-    new_stock['Percent Change'] = sp500['Adj Close'].pct_change()
+    new_stock['Percent Change'] = sp500['Close'].pct_change()
     new_stock.dropna(inplace=True)
 
     yearly_return = new_stock['Percent Change'].mean() * 252 * 100
