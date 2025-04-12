@@ -127,6 +127,7 @@ with trading_dashboard:
     if not ticker:
         st.markdown("<h1>Money Talks We <span style='color:green'> TRANSLATE</span></h1>", unsafe_allow_html=True)
         st.video("assets/stock.mp4")  # Replace with your video URL or file path
+
     if ticker:
         try:
             # Download stock data
@@ -138,24 +139,28 @@ with trading_dashboard:
                 if 'Adj Close' in stock_data.columns:
                     # Calculate the SMA50 using the 'Adj Close' column
                     stock_data['SMA50'] = stock_data['Adj Close'].rolling(window=50).mean()
+
+                # Access the latest close price for formatting
+                latest_close = stock_data['Close'].dropna().iloc[-1] if 'Close' in stock_data.columns else None
+
+                # Handle potential errors gracefully
+                if latest_close is None:
+                    st.error("No 'Close' data available for the given ticker.")
                 else:
-                    st.error("The 'Adj Close' column is missing from the stock data.")
+                    # Fetch company info from Yahoo Finance
+                    ticker_data = yf.Ticker(ticker)
+                    stock_info = ticker_data.info
+                    company_name = stock_info.get('longName', ticker)
+                    company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
+                    logo_url = f"https://logo.clearbit.com/{company_domain}"
 
-                # Continue with other operations using available columns
-                ticker_data = yf.Ticker(ticker)
-                stock_info = ticker_data.info
-                company_name = stock_info.get('longName', ticker)
-                company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
-                logo_url = f"https://logo.clearbit.com/{company_domain}"
-
-                # Display company logo and name
-                st.markdown(f"""
-                    <div class="logo-and-name">
-                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'">  
-                        <h1 style="display:inline;">{company_name} <span style="color:green">${stock_data['Close'].dropna().iloc[-1]:.2f}</span></h1>
-                    </div>
+                    # Display company logo and name with formatted stock price
+                    st.markdown(f"""
+                        <div class="logo-and-name">
+                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'">  
+                            <h1 style="display:inline;">{company_name} <span style="color:green">${latest_close:.2f}</span></h1>
+                        </div>
                     """, unsafe_allow_html=True)
-
 
             # Ensure stock data is retrieved successfully
             if not stock_data.empty:
