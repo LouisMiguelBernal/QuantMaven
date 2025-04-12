@@ -14,7 +14,7 @@ import time
 st.set_page_config(page_title='QuantMaven',
                    page_icon="assets/logo.png",
                    layout="wide")
-
+pd.options.display.float_format = "{:,}".format
 # Custom CSS for styling
 st.markdown("""
     <style>
