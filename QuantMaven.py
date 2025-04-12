@@ -99,22 +99,51 @@ if end_date and start_date:
 # Function to fetch stock data
 @st.cache_data
 def fetch_stock_data(ticker, start, end):
+    import json
+    import time
+    import yfinance as yf
+    from datetime import datetime
+
     try:
-        # Retry logic with exponential backoff
         retries = 5
         for i in range(retries):
             try:
-                data = yf.download(ticker, start=start, end=end)
+                data = yf.download(ticker, start=start, end=end, auto_adjust=False)
+
                 if data.empty:
-                    data = yf.download(ticker, start=start, end=datetime.today())
+                    data = yf.download(ticker, start=start, end=datetime.today(), auto_adjust=False)
+
+                # Check for multi-index (i.e., multiple tickers)
+                if isinstance(data.columns, pd.MultiIndex):
+                    # Extract Adjusted Close for the given ticker
+                    if ('Adj Close', ticker) in data.columns:
+                        data = data['Adj Close'][ticker].to_frame(name='Price')
+                    elif ('Close', ticker) in data.columns:
+                        st.warning("'Adj Close' not found; using 'Close' instead.")
+                        data = data['Close'][ticker].to_frame(name='Price')
+                    else:
+                        raise KeyError("Neither 'Adj Close' nor 'Close' found for selected ticker.")
+
+                else:
+                    # Single ticker case
+                    if 'Adj Close' in data.columns:
+                        data = data[['Adj Close']].rename(columns={'Adj Close': 'Price'})
+                    elif 'Close' in data.columns:
+                        st.warning("'Adj Close' not found; using 'Close' instead.")
+                        data = data[['Close']].rename(columns={'Close': 'Price'})
+                    else:
+                        raise KeyError("Neither 'Adj Close' nor 'Close' found in data.")
+
                 return data
+
             except (json.JSONDecodeError, ConnectionError, TimeoutError) as e:
                 if i < retries - 1:
-                    wait_time = 2 ** i  # Exponential backoff
+                    wait_time = 2 ** i
                     time.sleep(wait_time)
                     continue
                 else:
                     raise ValueError(f"Failed to fetch data after {retries} attempts") from e
+
     except Exception as e:
         st.error(f"Error fetching stock data: {str(e)}")
         return None
