@@ -88,7 +88,27 @@ with col2:
 
 with col3:
     end_date = st.date_input('End Date', value=datetime.today())
-
+  
+def safe_get_info(ticker_obj, retries=3, delay=5):
+    """Fetch stock info with retries in case of failure."""
+    attempt = 0
+    while attempt < retries:
+        try:
+            info = ticker_obj.info
+            if info and isinstance(info, dict):
+                return info
+            else:
+                raise ValueError("Received malformed info response.")
+        except (json.JSONDecodeError, ValueError) as e:
+            st.warning(f"Error fetching info for {ticker_obj.ticker}: {e}")
+            attempt += 1
+            time.sleep(delay)  # Wait before retrying
+        except Exception as e:
+            st.warning(f"Unexpected error while fetching info for {ticker_obj.ticker}: {e}")
+            return {}
+    st.error(f"Failed to fetch info for {ticker_obj.ticker} after {retries} attempts.")
+    return {}
+  
 # Automatically adjust start date if not a full year range
 if end_date and start_date:
     if (end_date - start_date).days < 365:
