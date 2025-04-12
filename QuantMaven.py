@@ -116,8 +116,22 @@ with trading_dashboard:
             # Download stock data
             stock_data = fetch_stock_data(ticker, start_date, end_date)
             ticker_data = yf.Ticker(ticker)
-            stock_info = ticker_data.info
-            company_name = ticker_data.info.get('longName', ticker)
+
+            # Attempt to fetch info with a fallback if it fails
+            def safe_get_info(ticker_obj):
+                try:
+                    # Attempt to fetch company info
+                    info = ticker_obj.info
+                    if info and isinstance(info, dict):
+                        return info
+                    else:
+                        raise ValueError("Received malformed info response.")
+                except Exception as e:
+                    st.warning(f"Unable to fetch company info for {ticker}. Error: {e}")
+                    return {}
+
+            stock_info = safe_get_info(ticker_data)
+            company_name = stock_info.get('longName', ticker)
             company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
             logo_url = f"https://logo.clearbit.com/{company_domain}"
 
