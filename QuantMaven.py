@@ -1,12 +1,15 @@
 import os
 import streamlit as st
 import pandas as pd
-import yfinance as yf
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from fredapi import Fred
 import requests
 import base64
+import subprocess
+# Check if yfinance is installed and upgrade if necessary
+subprocess.check_call([os.sys.executable, "-m", "pip", "install", "--upgrade", "--no-cache-dir", "yfinance"])
+import yfinance as yf
 
 # Set the page title and layout
 st.set_page_config(page_title='QuantMaven',
@@ -88,27 +91,7 @@ with col2:
 
 with col3:
     end_date = st.date_input('End Date', value=datetime.today())
-  
-def safe_get_info(ticker_obj, retries=3, delay=5):
-    """Fetch stock info with retries in case of failure."""
-    attempt = 0
-    while attempt < retries:
-        try:
-            info = ticker_obj.info
-            if info and isinstance(info, dict):
-                return info
-            else:
-                raise ValueError("Received malformed info response.")
-        except (json.JSONDecodeError, ValueError) as e:
-            st.warning(f"Error fetching info for {ticker_obj.ticker}: {e}")
-            attempt += 1
-            time.sleep(delay)  # Wait before retrying
-        except Exception as e:
-            st.warning(f"Unexpected error while fetching info for {ticker_obj.ticker}: {e}")
-            return {}
-    st.error(f"Failed to fetch info for {ticker_obj.ticker} after {retries} attempts.")
-    return {}
-  
+
 # Automatically adjust start date if not a full year range
 if end_date and start_date:
     if (end_date - start_date).days < 365:
@@ -136,22 +119,8 @@ with trading_dashboard:
             # Download stock data
             stock_data = fetch_stock_data(ticker, start_date, end_date)
             ticker_data = yf.Ticker(ticker)
-
-            # Attempt to fetch info with a fallback if it fails
-            def safe_get_info(ticker_obj):
-                try:
-                    # Attempt to fetch company info
-                    info = ticker_obj.info
-                    if info and isinstance(info, dict):
-                        return info
-                    else:
-                        raise ValueError("Received malformed info response.")
-                except Exception as e:
-                    st.warning(f"Unable to fetch company info for {ticker}. Error: {e}")
-                    return {}
-
-            stock_info = safe_get_info(ticker_data)
-            company_name = stock_info.get('longName', ticker)
+            stock_info = ticker_data.info
+            company_name = ticker_data.info.get('longName', ticker)
             company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
             logo_url = f"https://logo.clearbit.com/{company_domain}"
 
