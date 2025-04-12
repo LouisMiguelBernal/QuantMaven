@@ -162,6 +162,9 @@ with trading_dashboard:
                         </div>
                     """, unsafe_allow_html=True)
 
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
+
             # Ensure stock data is retrieved successfully
             if not stock_data.empty:
                 # Calculate indicators for charts
