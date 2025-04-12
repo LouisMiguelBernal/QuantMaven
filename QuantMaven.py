@@ -1,12 +1,14 @@
 import os
 import streamlit as st
 import pandas as pd
+import yfinance as yf
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from fredapi import Fred
 import requests
 import base64
-import yfinance as yf
+import json
+import time
 
 # Set the page title and layout
 st.set_page_config(page_title='QuantMaven',
@@ -97,10 +99,25 @@ if end_date and start_date:
 # Function to fetch stock data
 @st.cache_data
 def fetch_stock_data(ticker, start, end):
-    data = yf.download(ticker, start=start, end=end)
-    if data.empty:
-        data = yf.download(ticker, start=start, end=datetime.today())
-    return data
+    try:
+        # Retry logic with exponential backoff
+        retries = 5
+        for i in range(retries):
+            try:
+                data = yf.download(ticker, start=start, end=end)
+                if data.empty:
+                    data = yf.download(ticker, start=start, end=datetime.today())
+                return data
+            except (json.JSONDecodeError, ConnectionError, TimeoutError) as e:
+                if i < retries - 1:
+                    wait_time = 2 ** i  # Exponential backoff
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    raise ValueError(f"Failed to fetch data after {retries} attempts") from e
+    except Exception as e:
+        st.error(f"Error fetching stock data: {str(e)}")
+        return None
 
 # Create Tabs for different sections of the dashboard
 trading_dashboard, stock_rank, market_overview, economy = st.tabs(['Trading Dashboard','Stock Leaderboard', 'Market Overview', 'Economic Insights'])
@@ -115,20 +132,24 @@ with trading_dashboard:
         try:
             # Download stock data
             stock_data = fetch_stock_data(ticker, start_date, end_date)
-            ticker_data = yf.Ticker(ticker)
-            stock_info = ticker_data.info
-            company_name = ticker_data.info.get('longName', ticker)
-            company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
-            logo_url = f"https://logo.clearbit.com/{company_domain}"
+            if stock_data is None:
+                st.error("Unable to fetch stock data.")
+            else:
+                ticker_data = yf.Ticker(ticker)
+                stock_info = ticker_data.info
+                company_name = stock_info.get('longName', ticker)
+                company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
+                logo_url = f"https://logo.clearbit.com/{company_domain}"
 
-            # Display company logo and name
-            st.markdown(f"""
-                <div class="logo-and-name">
-                    <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'">
-                    <h1 style="display:inline;">{company_name} <span style="color:green">${stock_data['Close'].dropna().iloc[-1]:.2f}</span></h1>
-                </div>
-                """, unsafe_allow_html=True)
-
+                # Display company logo and name
+                st.markdown(f"""
+                    <div class="logo-and-name">
+                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'">  
+                        <h1 style="display:inline;">{company_name} <span style="color:green">${stock_data['Close'].dropna().iloc[-1]:.2f}</span></h1>
+                    </div>
+                    """, unsafe_allow_html=True)
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
             # Ensure stock data is retrieved successfully
             if not stock_data.empty:
                 # Calculate indicators for charts
