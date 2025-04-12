@@ -423,7 +423,8 @@ with stock_rank:
             st.markdown(f"**<span style='font-size: 24px'>{stock['avg_daily_return']:.2f}%</span>**", unsafe_allow_html=True)
 
         with col4:
-            st.markdown(f"**<span style='font-size: 24px'>${stock['current_price']:.2f}</span>**", unsafe_allow_html=True)
+            st.markdown(f"**<span style='font-size: 24px'>${float(stock['current_price']):.2f}</span>**", unsafe_allow_html=True)
+
         # Add S&P 500 Information
     sector_info = """
         The companies in this portfolio are influential across their sectors, providing key insights into broader economic trends. JPMorgan Chase & Co. (JPM) serves as a bellwether for the Financials sector, where its performance reflects the stability of credit markets and economic growth. UnitedHealth Group (UNH) leads the Healthcare sector, shaping policy and spending in healthcare, while NVIDIA (NVDA) drives technological advancement in AI and semiconductors, impacting industries such as cloud computing, gaming, and AI. Similarly, Amazon (AMZN) influences consumer behavior and retail trends within the Consumer Discretionary sector, making it a critical indicator of consumer spending.
