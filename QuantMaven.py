@@ -76,214 +76,237 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Inputs in separate columns
+# Create columns for inputs
 col1, col2, col3 = st.columns(3)
+
+# Inputs in separate columns
 with col1:
     ticker = st.text_input('Enter Stock Ticker:').upper()
+
 with col2:
     start_date = st.date_input('Start Date')
+
 with col3:
     end_date = st.date_input('End Date', value=datetime.today())
 
-# Adjust date range if too short
-if end_date and start_date and (end_date - start_date).days < 365:
-    start_date = end_date - timedelta(days=365)
+# Automatically adjust start date if not a full year range
+if end_date and start_date:
+    if (end_date - start_date).days < 365:
+        start_date = end_date - timedelta(days=365)
 
-# Cached function to fetch stock data
+# Function to fetch stock data
 @st.cache_data
 def fetch_stock_data(ticker, start, end):
-    try:
-        data = yf.download(ticker, start=start, end=end)
-        if data.empty:
-            data = yf.download(ticker, start=start, end=datetime.today())
-        return data
-    except Exception:
-        return None
+    data = yf.download(ticker, start=start, end=end)
+    if data.empty:
+        data = yf.download(ticker, start=start, end=datetime.today())
+    return data
 
-# Tabs
-trading_dashboard, stock_rank, market_overview, economy = st.tabs(
-    ['Trading Dashboard', 'Stock Leaderboard', 'Market Overview', 'Economic Insights']
-)
+# Create Tabs for different sections of the dashboard
+trading_dashboard, stock_rank, market_overview, economy = st.tabs(['Trading Dashboard','Stock Leaderboard', 'Market Overview', 'Economic Insights'])
 
+# Trading Dashboard Tab
 with trading_dashboard:
     if not ticker:
-        st.markdown("<h1>Money Talks We <span style='color:green'>TRANSLATE</span></h1>", unsafe_allow_html=True)
-        st.video("assets/stock.mp4")
+        st.markdown("<h1>Money Talks We <span style='color:green'> TRANSLATE</span></h1>", unsafe_allow_html=True)
+        st.video("assets/stock.mp4")  # Replace with your video URL or file path
 
     if ticker:
         try:
-            # Stock data
+            # Download stock data
             stock_data = fetch_stock_data(ticker, start_date, end_date)
-            if stock_data is None or stock_data.empty:
-                st.warning("No data available for this ticker. Please check the symbol or try again.")
-                st.stop()
-
-            # Safe retrieval of stock info
             ticker_data = yf.Ticker(ticker)
-            try:
-                stock_info = ticker_data.info
-            except Exception:
-                stock_info = {}
-
-            company_name = stock_info.get('longName', ticker)
+            stock_info = ticker_data.info
+            company_name = ticker_data.info.get('longName', ticker)
             company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
             logo_url = f"https://logo.clearbit.com/{company_domain}"
 
+            # Display company logo and name
             st.markdown(f"""
                 <div class="logo-and-name">
                     <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'">
                     <h1 style="display:inline;">{company_name} <span style="color:green">${stock_data['Close'].dropna().iloc[-1]:.2f}</span></h1>
                 </div>
-            """, unsafe_allow_html=True)
-
-            # Indicators
-            stock_data['SMA50'] = stock_data['Adj Close'].rolling(window=50).mean()
-            stock_data['SMA200'] = stock_data['Adj Close'].rolling(window=200).mean()
-            stock_data['20SMA'] = stock_data['Adj Close'].rolling(window=20).mean()
-            stock_data['Upper Band'] = stock_data['20SMA'] + stock_data['Adj Close'].rolling(window=20).std() * 2
-            stock_data['Lower Band'] = stock_data['20SMA'] - stock_data['Adj Close'].rolling(window=20).std() * 2
-
-            delta = stock_data['Adj Close'].diff()
-            gain = delta.where(delta > 0, 0).rolling(window=14).mean()
-            loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
-            rs = gain / loss
-            stock_data['RSI'] = 100 - (100 / (1 + rs))
-
-            # Candlestick Chart
-            fig = go.Figure()
-            fig.add_trace(go.Candlestick(
-                x=stock_data.index,
-                open=stock_data['Open'],
-                high=stock_data['High'],
-                low=stock_data['Low'],
-                close=stock_data['Adj Close'],
-                name='Candlestick',
-                increasing_line_color='green',
-                decreasing_line_color='red'
-            ))
-            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['SMA50'], mode='lines', name='SMA 50', line=dict(color='blue')))
-            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['SMA200'], mode='lines', name='SMA 200', line=dict(color='yellow')))
-            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Upper Band'], mode='lines', name='Upper Band', line=dict(color='lightblue')))
-            fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Lower Band'], mode='lines', name='Lower Band', line=dict(color='slategrey')))
-            fig.update_layout(title=f'{ticker} Chart', xaxis_title='Date', yaxis_title='Price', width=1700, height=700)
-            st.plotly_chart(fig)
-
-            # RSI Chart
-            fig_rsi = go.Figure(go.Scatter(x=stock_data.index, y=stock_data['RSI'], mode='lines', name='RSI', line=dict(color='orange')))
-            fig_rsi.update_layout(title='RSI', xaxis_title='Date', yaxis_title='RSI', width=1700, height=300, yaxis=dict(range=[0, 100]))
-            st.plotly_chart(fig_rsi)
-
-            # Sub-tabs
-            stock_overview, company_data, stock_update = st.tabs(['Stock Overview', 'Company Data', 'Stock News'])
-
-            # === Stock Overview Tab ===
-            with stock_overview:
-                st.markdown(f"""
-                    <div class="logo-and-name" style="margin-bottom: 20px;">
-                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                            {company_name} <span style="color: green;">Metrics</span>
-                        </h2>
-                    </div>
                 """, unsafe_allow_html=True)
 
-                # Metrics
-                avg_daily_return = stock_data['Adj Close'].pct_change().mean() * 100
-                pct_change = stock_data['Adj Close'].pct_change()
-                yearly_return = pct_change.mean() * 252 * 100
-                volatility = pct_change.std() * (252 ** 0.5) * 100
+            # Ensure stock data is retrieved successfully
+            if not stock_data.empty:
+                # Calculate indicators for charts
+                stock_data['SMA50'] = stock_data['Adj Close'].rolling(window=50).mean()
+                stock_data['SMA200'] = stock_data['Adj Close'].rolling(window=200).mean()
+                stock_data['20SMA'] = stock_data['Adj Close'].rolling(window=20).mean()
+                stock_data['Upper Band'] = stock_data['20SMA'] + (stock_data['Adj Close'].rolling(window=20).std() * 2)
+                stock_data['Lower Band'] = stock_data['20SMA'] - (stock_data['Adj Close'].rolling(window=20).std() * 2)
+                delta = stock_data['Adj Close'].diff()
+                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                rs = gain / loss
+                stock_data['RSI'] = 100 - (100 / (1 + rs))
 
-                prices = stock_data['Close'].dropna().tolist()
+                # Candlestick Chart
+                fig = go.Figure()
+                candlestick_trace = go.Candlestick(
+                    x=stock_data.index,
+                    open=stock_data['Open'],
+                    high=stock_data['High'],
+                    low=stock_data['Low'],
+                    close=stock_data['Adj Close'],
+                    name='Candlestick',
+                    increasing_line_color='green',
+                    decreasing_line_color='red'
+                )
+                fig.add_trace(candlestick_trace)
+                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['SMA50'], mode='lines', name='SMA 50', line=dict(color='blue')))
+                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['SMA200'], mode='lines', name='SMA 200', line=dict(color='yellow')))
+                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Upper Band'], mode='lines', name='Upper Band', line=dict(color='lightblue')))
+                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Lower Band'], mode='lines', name='Lower Band', line=dict(color='slategrey')))
+                fig.update_layout(title=f'{ticker} Chart', xaxis_title='Date', yaxis_title='Price', width=1700, height=700)
+                st.plotly_chart(fig)
 
-                def max_profit(prices, start, end, memo=None):
-                    if memo is None:
-                        memo = {}
-                    if end <= start:
-                        return 0
-                    if (start, end) in memo:
-                        return memo[(start, end)]
-                    max_profit_val = 0
-                    for i in range(start + 1, end + 1):
-                        profit = prices[i] - prices[start] + max_profit(prices, i + 1, end, memo)
-                        max_profit_val = max(max_profit_val, profit)
-                    memo[(start, end)] = max_profit_val
-                    return max_profit_val
+                # RSI Chart
+                fig_rsi = go.Figure(go.Scatter(x=stock_data.index, y=stock_data['RSI'], mode='lines', name='RSI', line=dict(color='orange')))
+                fig_rsi.update_layout(title='RSI', xaxis_title='Date', yaxis_title='RSI', width=1700, height=300, yaxis=dict(range=[0, 100]))
+                st.plotly_chart(fig_rsi)
 
-                max_profit_val = max_profit(prices, 0, len(prices) - 1)
+                # Stock Overview Tab
+                stock_overview, company_data, stock_update = st.tabs(['Stock Overview', 'Company Data', 'Stock News'])
 
-                col1, col2, col3, col4, col5 = st.columns(5)
-                col1.metric('Max Profit', f'{max_profit_val:.2f}')
-                col2.metric(label='Yearly Return', value=f'{yearly_return:.2f}%')
-                col3.metric('Annualized Volatility', f'{volatility:.2f}%')
-                col4.metric('Average Daily Return', f'{avg_daily_return:.2f}%')
-                col5.metric("Market Cap", stock_info.get("marketCap", "N/A"))
+                with stock_overview:
+                    st.markdown(f"""
+                        <div class="logo-and-name" style="margin-bottom: 20px;">
+                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
+                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                                {company_name} <span style="color: green;">Metrics</span>
+                            </h2>
+                        </div>
+                    """, unsafe_allow_html=True)
 
-                st.subheader('Stock Information Chart')
-                st.dataframe(stock_data)
+                    # Isolated DataFrame for Average Daily Return
+                    avg_daily_stock = stock_data[['Adj Close']].copy()
+                    avg_daily_stock['Percent Change'] = avg_daily_stock['Adj Close'].pct_change()
+                    avg_daily_stock.dropna(inplace=True)
+                    avg_daily_return = avg_daily_stock['Percent Change'].mean() * 100
 
-            # === Company Data Tab ===
-            with company_data:
-                st.markdown(f"""
-                    <div class="logo-and-name" style="margin-bottom: 20px;">
-                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                            {company_name} <span style="color: green;">Information</span>
-                        </h2>
-                    </div>
-                """, unsafe_allow_html=True)
+                    # Separate DataFrame for other metrics calculations
+                    new_stock = stock_data.copy()
+                    new_stock['Percent Change'] = new_stock['Adj Close'].pct_change()
+                    new_stock.dropna(inplace=True)
 
-                col1, col2 = st.columns(2)
-                col1.metric("Sector", stock_info.get("sector", "N/A"))
-                col2.metric("Industry", stock_info.get("industry", "N/A"))
-                st.metric("Website", stock_info.get("website", "N/A"))
+                    yearly_return = new_stock['Percent Change'].mean() * 252 * 100
+                    volatility = new_stock['Percent Change'].std() * (252**0.5) * 100  # Annualized volatility
 
-                st.subheader('Company Bio')
-                st.write(stock_info.get('longBusinessSummary', 'Company bio is not available.'))
+                    # Max profit calculation with (Dynamic programming- Top Down Memoization)
+                    prices = stock_data['Close'].dropna().tolist()
+                    start = 0
+                    end = len(prices) - 1
 
-                try:
-                    financials = {
-                        "income_statement": ticker_data.financials,
-                        "balance_sheet": ticker_data.balance_sheet,
-                        "cashflow": ticker_data.cashflow,
-                        "calendar": ticker_data.calendar,
-                    }
+                    def max_profit(prices, start, end, memo=None):
+                        if memo is None:
+                            memo = {}
+                        if end <= start:
+                            return 0
+                        if (start, end) in memo:
+                            return memo[(start, end)]
+                        max_profit_val = 0
+                        for i in range(start + 1, end + 1):
+                            profit = prices[i] - prices[start] + max_profit(prices, i + 1, end, memo)
+                            max_profit_val = max(max_profit_val, profit)
+                        memo[(start, end)] = max_profit_val
+                        return max_profit_val
 
-                    st.header('Company Financials')
-                    st.subheader("Income Statement:")
-                    st.dataframe(financials["income_statement"])
-                    st.subheader("Balance Sheet:")
-                    st.dataframe(financials["balance_sheet"])
-                    st.subheader("Cashflow Statement:")
-                    st.dataframe(financials["cashflow"])
-                except Exception as e:
-                    st.error(f"Error loading financials: {e}")
+                    max_profit_val = max_profit(prices, start, end)
 
-            # === Stock News Tab ===
-            with stock_update:
-                st.markdown(f"""
-                    <div class="logo-and-name" style="margin-bottom: 20px;">
-                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                            {company_name} <span style="color: green;">News</span>
-                        </h2>
-                    </div>
-                """, unsafe_allow_html=True)
+                    # Display metrics in columns
+                    col1, col2, col3, col4, col5 = st.columns(5)
+                    col1.metric('Max Profit', f'{max_profit_val:.2f}')
+                    col2.metric(label='Yearly Return', value=f'{yearly_return:.2f}%')
+                    col3.metric('Annualized Volatility', f'{volatility:.2f}%')
+                    col4.metric('Average Daily Return', f'{avg_daily_return:.2f}%')
+                    col5.metric("Market Cap", stock_info.get("marketCap", "N/A"))
 
-                try:
-                    stock_news = ticker_data.news
-                    if stock_news:
-                        for news in stock_news[:10]:
-                            st.write(f"### [{news['title']}]({news['link']})")
-                            st.write(news['publisher'])
-                            readable_date = datetime.utcfromtimestamp(news['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')
-                            st.write(f'Published: {readable_date}')
-                    else:
-                        st.write("No news articles available.")
-                except Exception as e:
-                    st.error(f"Error fetching stock news: {e}")
+                    st.subheader('Stock Information Chart')
+                    st.dataframe(new_stock)
+
+
+                # Company Data tab - display financials
+                with company_data:
+                    try:
+                       # Display company information header with a logo
+                        st.markdown(f"""
+                        <div class="logo-and-name" style="margin-bottom: 20px;">
+                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
+                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                                {company_name} <span style="color: green;">Information</span>
+                            </h2>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+       
+                        col1, col2 = st.columns(2)
+                        col1.metric("Sector", stock_info.get("sector", "N/A"))
+                        col2.metric("Industry", stock_info.get("industry", "N/A"))
+                        st.metric("Website", stock_info.get("website", "N/A"))
+
+                        # Display company bio
+                        if 'longBusinessSummary' in stock_info:
+                            st.subheader('Company Bio')
+                            st.write(stock_info['longBusinessSummary'])
+                        else:
+                            st.write("Company bio is not available.")
+
+                        # Fetch financial data
+                        stock = yf.Ticker(ticker)
+                        financials = {
+                            "income_statement": stock.financials,
+                            "balance_sheet": stock.balance_sheet,
+                            "cashflow": stock.cashflow,
+                            "calendar": stock.calendar,
+                        }
+
+                        # Display financials
+                        st.header('Company Financials')
+                        st.subheader("Income Statement:")
+                        st.dataframe(financials["income_statement"])
+
+                        st.subheader("Balance Sheet:")
+                        st.dataframe(financials["balance_sheet"])
+
+                        st.subheader("Cashflow Statement:")
+                        st.dataframe(financials["cashflow"])
+
+                    except Exception as e:
+                        st.error(f"An error occurred while fetching financials: {e}")
+
+                # Stock News
+                with stock_update:
+                    st.markdown(f"""
+                        <div class="logo-and-name" style="margin-bottom: 20px;">
+                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
+                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                                {company_name} <span style="color: green;">News</span>
+                            </h2>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                    try:
+                        stock_news = ticker_data.news
+                        if stock_news:
+                            for news in stock_news[:10]:  # Displaying the top 10 news articles
+                                st.write(f"### [{news['title']}]({news['link']})")
+                                st.write(news['publisher'])
+                                readable_date = datetime.utcfromtimestamp(news['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')
+                                st.write(f'Publised: {readable_date}')
+                        else:
+                            st.write("No news articles available for this stock.")
+                    except Exception as e:
+                        st.error(f"An error occurred while fetching stock news: {e}")
+
+            else:
+                st.warning('No data available for the given ticker and date range. Please check the ticker symbol or date range.')
+
         except Exception as e:
-            st.error(f"Error loading data: {str(e)}")
-            
+            st.error(f'Error fetching data for {ticker}. Please check the ticker symbol or try again later. Error: {str(e)}')
+
 # Stock Ranking (Divide & Conquer - Merge Sort)           
 with stock_rank:
     # Define stock list data
