@@ -121,7 +121,7 @@ def fetch_stock_data(ticker, start, end):
 
 # Create Tabs for different sections of the dashboard
 trading_dashboard, stock_rank, market_overview, economy = st.tabs(['Trading Dashboard','Stock Leaderboard', 'Market Overview', 'Economic Insights'])
-pd.options.display.float_format = "{:,}".format
+
 # Trading Dashboard Tab
 with trading_dashboard:
     if not ticker:
@@ -129,44 +129,44 @@ with trading_dashboard:
         st.video("assets/stock.mp4")  # Replace with your video URL or file path
 
     if ticker:
-      try:
-          # Download stock data
-          stock_data = fetch_stock_data(ticker, start_date, end_date)
-          
-          if stock_data.empty:
-              st.error("Unable to fetch stock data. Please check the ticker or date range.")
-          else:
-              # Ensure the 'Adj Close' column exists
-              if 'Adj Close' in stock_data.columns:
-                  # Calculate the SMA50 using the 'Adj Close' column
-                  stock_data['SMA50'] = stock_data['Adj Close'].rolling(window=50).mean()
-  
-              # Access the latest close price for formatting
-              if 'Close' in stock_data.columns:
-                  latest_close = stock_data['Close'].dropna().iloc[-1]
-              else:
-                  latest_close = None
-  
-              # Handle missing close data
-              if latest_close is None:
-                  st.error("No 'Close' data available for the given ticker.")
-              else:
-                  # Fetch company info from Yahoo Finance
-                  ticker_data = yf.Ticker(ticker)
-                  stock_info = ticker_data.info
-  
-                  # Retrieve company information, handle cases where 'longName' or 'website' is missing
-                  company_name = stock_info.get('longName', ticker)
-                  company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
-                  logo_url = f"https://logo.clearbit.com/{company_domain}"
-  
-                  # Display company logo and name with formatted stock price
-                  st.markdown(f"""
-                      <div class="logo-and-name">
-                          <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'">  
-                          <h1 style="display:inline;">{company_name} <span style="color:green">${latest_close:.2f}</span></h1>
-                      </div>
-                  """, unsafe_allow_html=True)
+        try:
+            # Download stock data
+            stock_data = fetch_stock_data(ticker, start_date, end_date)
+            
+            if stock_data.empty:
+                st.error("Unable to fetch stock data. Please check the ticker or date range.")
+            else:
+                # Ensure the 'Adj Close' column exists
+                if 'Adj Close' in stock_data.columns:
+                    # Calculate the SMA50 using the 'Adj Close' column
+                    stock_data['SMA50'] = stock_data['Adj Close'].rolling(window=50).mean()
+
+                # Access the latest close price for formatting
+                if 'Close' in stock_data.columns:
+                    latest_close = stock_data['Close'].dropna().iloc[-1]
+                else:
+                    latest_close = None
+
+                # Handle missing close data
+                if latest_close is None:
+                    st.error("No 'Close' data available for the given ticker.")
+                else:
+                    # Fetch company info from Yahoo Finance
+                    ticker_data = yf.Ticker(ticker)
+                    stock_info = ticker_data.info
+
+                    # Retrieve company information, handle cases where 'longName' or 'website' is missing
+                    company_name = stock_info.get('longName', ticker)
+                    company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
+                    logo_url = f"https://logo.clearbit.com/{company_domain}"
+
+                    # Display company logo and name with formatted stock price
+                    st.markdown(f"""
+                        <div class="logo-and-name">
+                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'">  
+                            <h1 style="display:inline;">{company_name} <span style="color:green">${latest_close:.2f}</span></h1>
+                        </div>
+                    """, unsafe_allow_html=True)
 
             # Ensure stock data is retrieved successfully
             if not stock_data.empty:
