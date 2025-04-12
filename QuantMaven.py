@@ -116,8 +116,17 @@ with trading_dashboard:
             # Download stock data
             stock_data = fetch_stock_data(ticker, start_date, end_date)
             ticker_data = yf.Ticker(ticker)
-            stock_info = ticker_data.info
-            company_name = ticker_data.info.get('longName', ticker)
+
+            # Safe fetch for ticker info to avoid JSONDecodeError
+            def safe_get_info(ticker_obj):
+                try:
+                    return ticker_obj.get_info()
+                except Exception as e:
+                    st.warning(f"Warning: Unable to fetch full company info. {e}")
+                    return {}
+
+            stock_info = safe_get_info(ticker_data)
+            company_name = stock_info.get('longName', ticker)
             company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
             logo_url = f"https://logo.clearbit.com/{company_domain}"
 
