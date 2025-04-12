@@ -14,7 +14,7 @@ import time
 st.set_page_config(page_title='QuantMaven',
                    page_icon="assets/logo.png",
                    layout="wide")
-pd.options.display.float_format = "{:,}".format
+
 # Custom CSS for styling
 st.markdown("""
     <style>
@@ -121,7 +121,7 @@ def fetch_stock_data(ticker, start, end):
 
 # Create Tabs for different sections of the dashboard
 trading_dashboard, stock_rank, market_overview, economy = st.tabs(['Trading Dashboard','Stock Leaderboard', 'Market Overview', 'Economic Insights'])
-
+pd.options.display.float_format = "{:,}".format
 # Trading Dashboard Tab
 with trading_dashboard:
     if not ticker:
