@@ -79,12 +79,12 @@ st.markdown(
 # Create columns for inputs
 col1, col2, col3 = st.columns(3)
 
-# Inputs in separate columns
+# Inputs in separate columns 
 with col1:
     ticker = st.text_input('Enter Stock Ticker:').upper()
 
 with col2:
-    start_date = st.date_input('Start Date')
+    start_date = st.date_input('Start Date', value=datetime.today() - timedelta(days=365*2))
 
 with col3:
     end_date = st.date_input('End Date', value=datetime.today())
@@ -97,13 +97,16 @@ if end_date and start_date:
 # Function to fetch stock data
 @st.cache_data
 def fetch_stock_data(ticker, start, end):
-    data = yf.download(ticker, start=start, end=end)
-    if data.empty:
-        data = yf.download(ticker, start=start, end=datetime.today())
-    return data
+    try:
+        data = yf.download(ticker, start=start, end=end)
+        return data
+    except Exception as e:
+        return pd.DataFrame()
 
 # Create Tabs for different sections of the dashboard
-trading_dashboard, stock_rank, market_overview, economy = st.tabs(['Trading Dashboard','Stock Leaderboard', 'Market Overview', 'Economic Insights'])
+trading_dashboard, stock_rank, market_overview, economy = st.tabs(
+    ['Trading Dashboard', 'Stock Leaderboard', 'Market Overview', 'Economic Insights']
+)
 
 # Trading Dashboard Tab
 with trading_dashboard:
