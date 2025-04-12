@@ -6,9 +6,6 @@ from datetime import datetime, timedelta
 from fredapi import Fred
 import requests
 import base64
-import subprocess
-# Check if yfinance is installed and upgrade if necessary
-subprocess.check_call([os.sys.executable, "-m", "pip", "install", "--upgrade", "--no-cache-dir", "yfinance"])
 import yfinance as yf
 
 # Set the page title and layout
