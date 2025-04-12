@@ -127,7 +127,6 @@ with trading_dashboard:
     if not ticker:
         st.markdown("<h1>Money Talks We <span style='color:green'> TRANSLATE</span></h1>", unsafe_allow_html=True)
         st.video("assets/stock.mp4")  # Replace with your video URL or file path
-
     if ticker:
         try:
             # Download stock data
@@ -135,6 +134,14 @@ with trading_dashboard:
             if stock_data is None:
                 st.error("Unable to fetch stock data.")
             else:
+                # Ensure the 'Adj Close' column exists
+                if 'Adj Close' in stock_data.columns:
+                    # Calculate the SMA50 using the 'Adj Close' column
+                    stock_data['SMA50'] = stock_data['Adj Close'].rolling(window=50).mean()
+                else:
+                    st.error("The 'Adj Close' column is missing from the stock data.")
+
+                # Continue with other operations using available columns
                 ticker_data = yf.Ticker(ticker)
                 stock_info = ticker_data.info
                 company_name = stock_info.get('longName', ticker)
@@ -148,8 +155,8 @@ with trading_dashboard:
                         <h1 style="display:inline;">{company_name} <span style="color:green">${stock_data['Close'].dropna().iloc[-1]:.2f}</span></h1>
                     </div>
                     """, unsafe_allow_html=True)
-        except Exception as e:
-            st.error(f"An error occurred: {str(e)}")
+
+
             # Ensure stock data is retrieved successfully
             if not stock_data.empty:
                 # Calculate indicators for charts
