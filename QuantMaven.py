@@ -116,7 +116,7 @@ with trading_dashboard:
             # Download stock data
             stock_data = fetch_stock_data(ticker, start_date, end_date)
             ticker_data = yf.Ticker(ticker)
-
+    
             # Safe fetch for ticker info to avoid JSONDecodeError
             def safe_get_info(ticker_obj):
                 try:
@@ -124,12 +124,12 @@ with trading_dashboard:
                 except Exception as e:
                     st.warning(f"Warning: Unable to fetch full company info. {e}")
                     return {}
-
+    
             stock_info = safe_get_info(ticker_data)
             company_name = stock_info.get('longName', ticker)
             company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
             logo_url = f"https://logo.clearbit.com/{company_domain}"
-
+    
             # Display company logo and name
             st.markdown(f"""
                 <div class="logo-and-name">
@@ -137,6 +137,20 @@ with trading_dashboard:
                     <h1 style="display:inline;">{company_name} <span style="color:green">${stock_data['Close'].dropna().iloc[-1]:.2f}</span></h1>
                 </div>
                 """, unsafe_allow_html=True)
+    
+            if not stock_data.empty:
+                # (No changes to your indicators or Plotly chart logic here)
+                # Continue with indicators, RSI, candlestick, and metrics...
+    
+                # All your indicators and charts code here...
+                # Continue showing your 'Stock Overview', 'Company Data', and 'News' tabs...
+    
+            else:
+                st.warning('No data available for the given ticker and date range. Please check the ticker symbol or date range.')
+    
+        except Exception as e:
+            st.error(f"Error fetching data for {ticker}. Please check the ticker symbol or try again later. Error: {str(e)}")
+
 
             # Ensure stock data is retrieved successfully
             if not stock_data.empty:
