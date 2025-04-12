@@ -374,7 +374,7 @@ with stock_rank:
         avg_daily_return = avg_daily_stock['Percent Change'].mean() * 100
 
         # Get current price
-        current_price = stock_data['Close'].dropna().iloc[-1]  
+        current_price = stock['current_price'].iloc[0] 
 
         # Store stock data with calculated values
         stock['avg_daily_return'] = avg_daily_return
