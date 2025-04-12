@@ -112,31 +112,31 @@ with trading_dashboard:
         st.video("assets/stock.mp4")  # Replace with your video URL or file path
 
     if ticker:
-      try:
-          # Download stock data
-          stock_data = fetch_stock_data(ticker, start_date, end_date)
-          ticker_data = yf.Ticker(ticker)
-  
-          # Safe fetch for ticker info to avoid JSONDecodeError
-          def safe_get_info(ticker_obj):
-              try:
-                  return ticker_obj.get_info()
-              except Exception as e:
-                  st.warning(f"Warning: Unable to fetch full company info. {e}")
-                  return {}
-  
-          stock_info = safe_get_info(ticker_data)
-          company_name = stock_info.get('longName', ticker)
-          company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
-          logo_url = f"https://logo.clearbit.com/{company_domain}"
-  
-          # Display company logo and name
-          st.markdown(f"""
-              <div class="logo-and-name">
-                  <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'">
-                  <h1 style="display:inline;">{company_name} <span style="color:green">${stock_data['Close'].dropna().iloc[-1]:.2f}</span></h1>
-              </div>
-              """, unsafe_allow_html=True)
+        try:
+            # Download stock data
+            stock_data = fetch_stock_data(ticker, start_date, end_date)
+            ticker_data = yf.Ticker(ticker)
+
+            # Safe fetch for ticker info to avoid JSONDecodeError
+            def safe_get_info(ticker_obj):
+                try:
+                    return ticker_obj.get_info()
+                except Exception as e:
+                    st.warning(f"Warning: Unable to fetch full company info. {e}")
+                    return {}
+
+            stock_info = safe_get_info(ticker_data)
+            company_name = stock_info.get('longName', ticker)
+            company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
+            logo_url = f"https://logo.clearbit.com/{company_domain}"
+
+            # Display company logo and name
+            st.markdown(f"""
+                <div class="logo-and-name">
+                    <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'">
+                    <h1 style="display:inline;">{company_name} <span style="color:green">${stock_data['Close'].dropna().iloc[-1]:.2f}</span></h1>
+                </div>
+                """, unsafe_allow_html=True)
 
             # Ensure stock data is retrieved successfully
             if not stock_data.empty:
