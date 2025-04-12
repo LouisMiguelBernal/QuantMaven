@@ -7,8 +7,6 @@ from datetime import datetime, timedelta
 from fredapi import Fred
 import requests
 import base64
-import json
-import time
 
 # Set the page title and layout
 st.set_page_config(page_title='QuantMaven',
@@ -99,54 +97,10 @@ if end_date and start_date:
 # Function to fetch stock data
 @st.cache_data
 def fetch_stock_data(ticker, start, end):
-    import json
-    import time
-    import yfinance as yf
-    from datetime import datetime
-
-    try:
-        retries = 5
-        for i in range(retries):
-            try:
-                data = yf.download(ticker, start=start, end=end, auto_adjust=False)
-
-                if data.empty:
-                    data = yf.download(ticker, start=start, end=datetime.today(), auto_adjust=False)
-
-                # Check for multi-index (i.e., multiple tickers)
-                if isinstance(data.columns, pd.MultiIndex):
-                    # Extract Adjusted Close for the given ticker
-                    if ('Adj Close', ticker) in data.columns:
-                        data = data['Adj Close'][ticker].to_frame(name='Price')
-                    elif ('Close', ticker) in data.columns:
-                        st.warning("'Adj Close' not found; using 'Close' instead.")
-                        data = data['Close'][ticker].to_frame(name='Price')
-                    else:
-                        raise KeyError("Neither 'Adj Close' nor 'Close' found for selected ticker.")
-
-                else:
-                    # Single ticker case
-                    if 'Adj Close' in data.columns:
-                        data = data[['Adj Close']].rename(columns={'Adj Close': 'Price'})
-                    elif 'Close' in data.columns:
-                        st.warning("'Adj Close' not found; using 'Close' instead.")
-                        data = data[['Close']].rename(columns={'Close': 'Price'})
-                    else:
-                        raise KeyError("Neither 'Adj Close' nor 'Close' found in data.")
-
-                return data
-
-            except (json.JSONDecodeError, ConnectionError, TimeoutError) as e:
-                if i < retries - 1:
-                    wait_time = 2 ** i
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    raise ValueError(f"Failed to fetch data after {retries} attempts") from e
-
-    except Exception as e:
-        st.error(f"Error fetching stock data: {str(e)}")
-        return None
+    data = yf.download(ticker, start=start, end=end)
+    if data.empty:
+        data = yf.download(ticker, start=start, end=datetime.today())
+    return data
 
 # Create Tabs for different sections of the dashboard
 trading_dashboard, stock_rank, market_overview, economy = st.tabs(['Trading Dashboard','Stock Leaderboard', 'Market Overview', 'Economic Insights'])
@@ -161,41 +115,19 @@ with trading_dashboard:
         try:
             # Download stock data
             stock_data = fetch_stock_data(ticker, start_date, end_date)
-            
-            if stock_data.empty:
-                st.error("Unable to fetch stock data. Please check the ticker or date range.")
-            else:
-                # Ensure the 'Adj Close' column exists
-                if 'Adj Close' in stock_data.columns:
-                    # Calculate the SMA50 using the 'Adj Close' column
-                    stock_data['SMA50'] = stock_data['Adj Close'].rolling(window=50).mean()
+            ticker_data = yf.Ticker(ticker)
+            stock_info = ticker_data.info
+            company_name = ticker_data.info.get('longName', ticker)
+            company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
+            logo_url = f"https://logo.clearbit.com/{company_domain}"
 
-                # Access the latest close price for formatting
-                if 'Close' in stock_data.columns:
-                    latest_close = stock_data['Close'].dropna().iloc[-1]
-                else:
-                    latest_close = None
-
-                # Handle missing close data
-                if latest_close is None:
-                    st.error("No 'Close' data available for the given ticker.")
-                else:
-                    # Fetch company info from Yahoo Finance
-                    ticker_data = yf.Ticker(ticker)
-                    stock_info = ticker_data.info
-
-                    # Retrieve company information, handle cases where 'longName' or 'website' is missing
-                    company_name = stock_info.get('longName', ticker)
-                    company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
-                    logo_url = f"https://logo.clearbit.com/{company_domain}"
-
-                    # Display company logo and name with formatted stock price
-                    st.markdown(f"""
-                        <div class="logo-and-name">
-                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'">  
-                            <h1 style="display:inline;">{company_name} <span style="color:green">${latest_close:.2f}</span></h1>
-                        </div>
-                    """, unsafe_allow_html=True)
+            # Display company logo and name
+            st.markdown(f"""
+                <div class="logo-and-name">
+                    <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'">
+                    <h1 style="display:inline;">{company_name} <span style="color:green">${stock_data['Close'].dropna().iloc[-1]:.2f}</span></h1>
+                </div>
+                """, unsafe_allow_html=True)
 
             # Ensure stock data is retrieved successfully
             if not stock_data.empty:
