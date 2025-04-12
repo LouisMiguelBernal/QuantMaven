@@ -1,6 +1,6 @@
-fredapi==0.5.2
-pandas==2.2.3
-plotly==5.24.0
-Requests==2.32.3
-streamlit==1.38.0
-yfinance>=0.1.70
+fredapi
+pandas
+plotly
+Requests
+streamlit
+yfinance
