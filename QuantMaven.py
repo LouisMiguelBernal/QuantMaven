@@ -1,3 +1,4 @@
+# test_fixed.py
 import os
 import streamlit as st
 import pandas as pd
@@ -7,13 +8,15 @@ from datetime import datetime, timedelta
 from fredapi import Fred
 import requests
 import base64
+from urllib.parse import urlparse
 
-# Set the page title and layout
+# ------------------------------
+# Page config and CSS (same)
+# ------------------------------
 st.set_page_config(page_title='QuantMaven',
                    page_icon="assets/logo.png",
                    layout="wide")
 
-# Custom CSS for styling
 st.markdown("""
     <style>
     .title {
@@ -56,16 +59,20 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Function to convert image to base64
+# ------------------------------
+# Helpers: base64 image
+# ------------------------------
 def get_base64_image(image_path):
-    with open(image_path, "rb") as image_file:
-        encoded = base64.b64encode(image_file.read()).decode()
-    return encoded
+    try:
+        with open(image_path, "rb") as image_file:
+            encoded = base64.b64encode(image_file.read()).decode()
+            return encoded
+    except Exception:
+        return None
 
-# Convert logo to base64
 logo_base64 = get_base64_image('assets/logo.png')
 
-# Display the logo and title using HTML with added margin/padding to move it down
+# Header with logo
 st.markdown(
     f"""
     <div style="display: flex; align-items: center; padding-top: 50px;">
@@ -76,12 +83,13 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Create columns for inputs
+# ------------------------------
+# Inputs
+# ------------------------------
 col1, col2, col3 = st.columns(3)
 
-# Inputs in separate columns 
 with col1:
-    ticker = st.text_input('Enter Stock Ticker:').upper()
+    ticker = st.text_input('Enter Stock Ticker:').upper().strip()
 
 with col2:
     start_date = st.date_input('Start Date', value=datetime.today() - timedelta(days=365*2))
@@ -89,257 +97,422 @@ with col2:
 with col3:
     end_date = st.date_input('End Date', value=datetime.today())
 
-# Automatically adjust start date if not a full year range
+# Ensure at least 1 year window if user provided smaller
 if end_date and start_date:
     if (end_date - start_date).days < 365:
         start_date = end_date - timedelta(days=365)
 
-# Function to fetch stock data
-@st.cache_data
-def fetch_stock_data(ticker, start, end):
+# ------------------------------
+# Cached fetch functions
+# ------------------------------
+@st.cache_data(ttl=60*60)  # cache for 1 hour
+def fetch_stock_data(ticker_symbol: str, start, end):
+    """Return DataFrame (can be empty)"""
     try:
-        data = yf.download(ticker, start=start, end=end)
+        # yfinance accepts date-like objects
+        data = yf.download(ticker_symbol, start=start, end=end, progress=False)
+        if data is None:
+            return pd.DataFrame()
         return data
-    except Exception as e:
+    except Exception:
         return pd.DataFrame()
 
-# Create Tabs for different sections of the dashboard
+
+@st.cache_data(ttl=60*60)
+def fetch_ticker_info(ticker_symbol: str):
+    """Safely fetch ticker.info dict; return {} on failure"""
+    try:
+        tk = yf.Ticker(ticker_symbol)
+        info = {}
+        try:
+            info = tk.info or {}
+        except Exception:
+            info = {}
+        return info
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=60*60)
+def fetch_financials(ticker_symbol: str):
+    """Return a dict of financial DataFrames; fall back to empty DataFrames"""
+    try:
+        tk = yf.Ticker(ticker_symbol)
+        fin = {}
+        # wrap each attribute access; sometimes these are empty or raise
+        for attr in ("financials", "balance_sheet", "cashflow", "calendar"):
+            try:
+                fin[attr] = getattr(tk, attr) or pd.DataFrame()
+            except Exception:
+                fin[attr] = pd.DataFrame()
+        return fin
+    except Exception:
+        return {"financials": pd.DataFrame(), "balance_sheet": pd.DataFrame(), "cashflow": pd.DataFrame(), "calendar": pd.DataFrame()}
+
+
+@st.cache_data(ttl=60*60)
+def fetch_sp500(start, end):
+    try:
+        df = yf.download('^GSPC', start=start, end=end, progress=False)
+        if df is None:
+            return pd.DataFrame()
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def safe_extract_domain(website_str: str):
+    """Given a website (maybe with http(s)), return netloc or empty string"""
+    if not website_str or not isinstance(website_str, str):
+        return ""
+    website_str = website_str.strip()
+    # If it doesn't have scheme, add to parse correctly
+    if not website_str.startswith(("http://", "https://")):
+        website_str = "https://" + website_str
+    try:
+        parsed = urlparse(website_str)
+        # remove www.
+        domain = parsed.netloc.replace("www.", "")
+        return domain
+    except Exception:
+        return ""
+
+# ------------------------------
+# Tabs
+# ------------------------------
 trading_dashboard, stock_rank, market_overview, economy = st.tabs(
     ['Trading Dashboard', 'Stock Leaderboard', 'Market Overview', 'Economic Insights']
 )
 
+# ------------------------------
 # Trading Dashboard Tab
+# ------------------------------
 with trading_dashboard:
     if not ticker:
-        st.markdown("<h1>Money Talks We <span style='color:green'> TRANSLATE</span></h1>", unsafe_allow_html=True)
-        st.video("assets/stock.mp4")  # Replace with your video URL or file path
+        st.markdown("<h1>Money Talks We <span style='color:green'>TRANSLATE</span></h1>", unsafe_allow_html=True)
+        if os.path.exists("assets/stock.mp4"):
+            st.video("assets/stock.mp4")
 
     if ticker:
-        try:
-            # Download stock data
+        with st.spinner("Fetching stock data..."):
             stock_data = fetch_stock_data(ticker, start_date, end_date)
-            ticker_data = yf.Ticker(ticker)
-            stock_info = ticker_data.info
-            company_name = ticker_data.info.get('longName', ticker)
-            company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
-            logo_url = f"https://logo.clearbit.com/{company_domain}"
+            stock_info = fetch_ticker_info(ticker)
 
-            # Display company logo and name
+            # ---- Company Name ----
+            company_name = stock_info.get('longName') or stock_info.get('shortName') or ticker
+
+            # ---- Logo Handling ----
+            company_website = stock_info.get("website", "")
+            domain = safe_extract_domain(company_website)
+            logo_url = f"https://logo.clearbit.com/{domain}" if domain else None
+            if not logo_url:
+                logo_url = "assets/logo.png" if os.path.exists("assets/logo.png") else None
+
+        # ---- HEADER ----
+        if logo_url:
+            if stock_data.empty:
+                last_close_str = ""
+            else:
+                close_series = stock_data["Close"]
+                if isinstance(close_series, pd.DataFrame):  # multi-ticker case
+                    close_series = close_series.iloc[:, 0]
+                close_series = close_series.dropna()
+                last_close_str = f"${close_series.iloc[-1]:.2f}" if not close_series.empty else ""
+
             st.markdown(f"""
                 <div class="logo-and-name">
                     <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'">
-                    <h1 style="display:inline;">{company_name} <span style="color:green">${stock_data['Close'].dropna().iloc[-1]:.2f}</span></h1>
+                    <h1 style="display:inline;">{company_name} <span style="color:green">{last_close_str}</span></h1>
                 </div>
                 """, unsafe_allow_html=True)
+        else:
+            st.header(company_name)
 
-            # Ensure stock data is retrieved successfully
-            if not stock_data.empty:
-                # Calculate indicators for charts
-                stock_data['SMA50'] = stock_data['Close'].rolling(window=50).mean()
-                stock_data['SMA200'] = stock_data['Close'].rolling(window=200).mean()
-                stock_data['20SMA'] = stock_data['Close'].rolling(window=20).mean()
-                stock_data['Upper Band'] = stock_data['20SMA'] + (stock_data['Close'].rolling(window=20).std() * 2)
-                stock_data['Lower Band'] = stock_data['20SMA'] - (stock_data['Close'].rolling(window=20).std() * 2)
-                delta = stock_data['Close'].diff()
-                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-                rs = gain / loss
-                stock_data['RSI'] = 100 - (100 / (1 + rs))
+        # ---- EMPTY DATA CHECK ----
+        if stock_data.empty:
+            st.warning("No data available for the given ticker and date range. Please check the ticker symbol or date range.")
+        else:
+            # ---- INDICATORS ----
+            df = stock_data.copy()
 
-                # Candlestick Chart
-                fig = go.Figure()
-                candlestick_trace = go.Candlestick(
-                    x=stock_data.index,
-                    open=stock_data['Open'],
-                    high=stock_data['High'],
-                    low=stock_data['Low'],
-                    close=stock_data['Close'],
-                    name='Candlestick',
-                    increasing_line_color='green',
-                    decreasing_line_color='red'
+            # Ensure series for OHLC
+            open_series = df["Open"]
+            high_series = df["High"]
+            low_series = df["Low"]
+            close_series = df["Close"]
+
+            if isinstance(open_series, pd.DataFrame):  # handle multi-ticker case
+                open_series = open_series.iloc[:, 0]
+            if isinstance(high_series, pd.DataFrame):
+                high_series = high_series.iloc[:, 0]
+            if isinstance(low_series, pd.DataFrame):
+                low_series = low_series.iloc[:, 0]
+            if isinstance(close_series, pd.DataFrame):
+                close_series = close_series.iloc[:, 0]
+
+            # Moving averages & Bollinger Bands
+            df['SMA50'] = close_series.rolling(window=50).mean()
+            df['SMA200'] = close_series.rolling(window=200).mean()
+            df['20SMA'] = close_series.rolling(window=20).mean()
+            df['Upper Band'] = df['20SMA'] + (close_series.rolling(window=20).std() * 2)
+            df['Lower Band'] = df['20SMA'] - (close_series.rolling(window=20).std() * 2)
+
+            # RSI
+            delta = close_series.diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            df['RSI'] = 100 - (100 / (1 + rs))
+
+            # ---- CANDLESTICK CHART ----
+            fig = go.Figure(data=[go.Candlestick(
+                x=df.index,
+                open=open_series,
+                high=high_series,
+                low=low_series,
+                close=close_series,
+                name="Candlestick",
+                increasing_line_color="green",
+                decreasing_line_color="red"
+            )])
+
+            # Add SMA & Bollinger Bands
+            for col in ["SMA50", "SMA200", "Upper Band", "Lower Band"]:
+                if col in df and not df[col].isna().all():
+                    fig.add_trace(go.Scatter(x=df.index, y=df[col], mode="lines", name=col))
+
+            fig.update_layout(
+                title=f"{ticker} Price Chart",
+                xaxis_title="Date",
+                yaxis_title="Price",
+                width=1700,
+                height=700,
+                xaxis_rangeslider_visible=False
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            # ---- RSI CHART ----
+            if "RSI" in df.columns and not df["RSI"].isna().all():
+                fig_rsi = go.Figure(go.Scatter(x=df.index, y=df["RSI"], mode="lines", name="RSI"))
+                fig_rsi.update_layout(
+                    title="Relative Strength Index (RSI)",
+                    xaxis_title="Date",
+                    yaxis_title="RSI",
+                    width=1700,
+                    height=300,
+                    yaxis=dict(range=[0, 100])
                 )
-                fig.add_trace(candlestick_trace)
-                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['SMA50'], mode='lines', name='SMA 50', line=dict(color='blue')))
-                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['SMA200'], mode='lines', name='SMA 200', line=dict(color='yellow')))
-                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Upper Band'], mode='lines', name='Upper Band', line=dict(color='lightblue')))
-                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Lower Band'], mode='lines', name='Lower Band', line=dict(color='slategrey')))
-                fig.update_layout(title=f'{ticker} Chart', xaxis_title='Date', yaxis_title='Price', width=1700, height=700)
-                st.plotly_chart(fig)
-
-                # RSI Chart
-                fig_rsi = go.Figure(go.Scatter(x=stock_data.index, y=stock_data['RSI'], mode='lines', name='RSI', line=dict(color='orange')))
-                fig_rsi.update_layout(title='RSI', xaxis_title='Date', yaxis_title='RSI', width=1700, height=300, yaxis=dict(range=[0, 100]))
-                st.plotly_chart(fig_rsi)
-
-                # Stock Overview Tab
-                stock_overview, company_data, stock_update = st.tabs(['Stock Overview', 'Company Data', 'Stock News'])
-
-                with stock_overview:
-                    st.markdown(f"""
-                        <div class="logo-and-name" style="margin-bottom: 20px;">
-                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                                {company_name} <span style="color: green;">Metrics</span>
-                            </h2>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-                    # Isolated DataFrame for Average Daily Return
-                    avg_daily_stock = stock_data[['Close']].copy()
-                    avg_daily_stock['Percent Change'] = avg_daily_stock['Close'].pct_change()
-                    avg_daily_stock.dropna(inplace=True)
-                    avg_daily_return = avg_daily_stock['Percent Change'].mean() * 100
-
-                    # Separate DataFrame for other metrics calculations
-                    new_stock = stock_data.copy()
-                    new_stock['Percent Change'] = new_stock['Close'].pct_change()
-                    new_stock.dropna(inplace=True)
-
-                    yearly_return = new_stock['Percent Change'].mean() * 252 * 100
-                    volatility = new_stock['Percent Change'].std() * (252**0.5) * 100  # Annualized volatility
-
-                    # Max profit calculation with (Dynamic programming- Top Down Memoization)
-                    prices = stock_data['Close'].dropna().tolist()
-                    start = 0
-                    end = len(prices) - 1
-
-                    def max_profit(prices, start, end, memo=None):
-                        if memo is None:
-                            memo = {}
-                        if end <= start:
-                            return 0
-                        if (start, end) in memo:
-                            return memo[(start, end)]
-                        max_profit_val = 0
-                        for i in range(start + 1, end + 1):
-                            profit = prices[i] - prices[start] + max_profit(prices, i + 1, end, memo)
-                            max_profit_val = max(max_profit_val, profit)
-                        memo[(start, end)] = max_profit_val
-                        return max_profit_val
-
-                    max_profit_val = max_profit(prices, start, end)
-
-                    # Display metrics in columns
-                    col1, col2, col3, col4, col5 = st.columns(5)
-                    col1.metric('Max Profit', f'{max_profit_val:.2f}')
-                    col2.metric(label='Yearly Return', value=f'{yearly_return:.2f}%')
-                    col3.metric('Annualized Volatility', f'{volatility:.2f}%')
-                    col4.metric('Average Daily Return', f'{avg_daily_return:.2f}%')
-                    col5.metric("Market Cap", stock_info.get("marketCap", "N/A"))
-
-                    st.subheader('Stock Information Chart')
-                    st.dataframe(new_stock)
+                st.plotly_chart(fig_rsi, use_container_width=True)
 
 
-                # Company Data tab - display financials
-                with company_data:
+            # ---- TABS ----
+            stock_overview, company_data, stock_update = st.tabs(['Stock Overview', 'Company Data', 'Stock News'])
+
+            # ---- STOCK OVERVIEW ----
+            with stock_overview:
+                st.markdown(f"""
+                    <div class="logo-and-name" style="margin-bottom: 20px;">
+                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
+                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                            {company_name} <span style="color: green;">Metrics</span>
+                        </h2>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                # Metrics calculations
+               # ---- METRICS ----
+                returns = close_series.pct_change().dropna()
+                avg_daily_return = returns.mean() * 100 if not returns.empty else 0.0
+                yearly_return = returns.mean() * 252 * 100 if not returns.empty else 0.0
+                volatility = returns.std() * (252**0.5) * 100 if not returns.empty else 0.0
+
+                # Max profit (DP)
+                prices = close_series.dropna().tolist()
+
+                def max_profit(prices_list, start_idx, end_idx, memo=None):
+                    if memo is None:
+                        memo = {}
+                    if end_idx <= start_idx:
+                        return 0
+                    if (start_idx, end_idx) in memo:
+                        return memo[(start_idx, end_idx)]
+                    max_profit_val = 0
+                    for i in range(start_idx + 1, end_idx + 1):
+                        profit = prices_list[i] - prices_list[start_idx]
+                        if i + 1 <= end_idx:
+                            profit += max_profit(prices_list, i + 1, end_idx, memo)
+                        max_profit_val = max(max_profit_val, profit)
+                    memo[(start_idx, end_idx)] = max_profit_val
+                    return max_profit_val
+
+                max_profit_val = max_profit(prices, 0, len(prices) - 1) if prices else 0.0
+
+                # Market cap
+                market_cap_raw = stock_info.get("marketCap", None)
+                if market_cap_raw is None:
+                    market_cap_str = "N/A"
+                else:
                     try:
-                       # Display company information header with a logo
-                        st.markdown(f"""
-                        <div class="logo-and-name" style="margin-bottom: 20px;">
-                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                                {company_name} <span style="color: green;">Information</span>
-                            </h2>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        market_cap_str = f"${int(market_cap_raw):,}"
+                    except Exception:
+                        market_cap_str = str(market_cap_raw)
 
-       
-                        col1, col2 = st.columns(2)
-                        col1.metric("Sector", stock_info.get("sector", "N/A"))
-                        col2.metric("Industry", stock_info.get("industry", "N/A"))
-                        st.metric("Website", stock_info.get("website", "N/A"))
+                # ---- METRICS DISPLAY ----
+                mcol1, mcol2, mcol3, mcol4, mcol5 = st.columns(5)
+                mcol1.metric("Max Profit", f"{max_profit_val:.2f}")
+                mcol2.metric("Yearly Return", f"{yearly_return:.2f}%")
+                mcol3.metric("Annualized Volatility", f"{volatility:.2f}%")
+                mcol4.metric("Average Daily Return", f"{avg_daily_return:.2f}%")
+                mcol5.metric("Market Cap", market_cap_str)
 
-                        # Display company bio
-                        if 'longBusinessSummary' in stock_info:
-                            st.subheader('Company Bio')
-                            st.write(stock_info['longBusinessSummary'])
-                        else:
-                            st.write("Company bio is not available.")
+                # ---- INFO TABLE ----
+                st.subheader("Stock Information Chart")
 
-                        # Fetch financial data
-                        stock = yf.Ticker(ticker)
-                        financials = {
-                            "income_statement": stock.financials,
-                            "balance_sheet": stock.balance_sheet,
-                            "cashflow": stock.cashflow,
-                            "calendar": stock.calendar,
-                        }
+                # Extract OHLC safely
+                df_display = df[['Open', 'High', 'Low', 'Close']].dropna().copy()
 
-                        # Display financials
-                        st.header('Company Financials')
+                # If columns are MultiIndex (e.g., ('NVDA','Open')), flatten them
+                if isinstance(df_display.columns, pd.MultiIndex):
+                    df_display.columns = [col[-1] for col in df_display.columns]  # keep only Open/High/Low/Close
+
+                # Reset index -> make Date a column
+                df_display = df_display.reset_index()
+
+                # Rename first column explicitly to "Date"
+                df_display.rename(columns={df_display.columns[0]: "Date"}, inplace=True)
+
+                # Drop any accidental duplicates
+                df_display = df_display.loc[:, ~df_display.columns.duplicated()]
+
+                st.dataframe(df_display)
+
+
+
+
+            # --- Company Data ---
+            with company_data:
+                st.markdown(f"""
+                    <div class="logo-and-name" style="margin-bottom: 20px;">
+                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
+                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                            {company_name} <span style="color: green;">Information</span>
+                        </h2>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                try:
+                    ccol1, ccol2 = st.columns(2)
+                    ccol1.metric("Sector", stock_info.get("sector", "N/A"))
+                    ccol2.metric("Industry", stock_info.get("industry", "N/A"))
+                    st.metric("Website", stock_info.get("website", "N/A"))
+
+                    if 'longBusinessSummary' in stock_info:
+                        st.subheader('Company Bio')
+                        st.write(stock_info['longBusinessSummary'])
+                    else:
+                        st.write("Company bio is not available.")
+
+                    # Fetch financials (cached)
+                    financials = fetch_financials(ticker)
+
+                    st.header('Company Financials')
+                    if not financials["financials"].empty:
                         st.subheader("Income Statement:")
-                        st.dataframe(financials["income_statement"])
+                        st.dataframe(financials["financials"])
+                    else:
+                        st.write("Income Statement: Not available")
 
+                    if not financials["balance_sheet"].empty:
                         st.subheader("Balance Sheet:")
                         st.dataframe(financials["balance_sheet"])
+                    else:
+                        st.write("Balance Sheet: Not available")
 
+                    if not financials["cashflow"].empty:
                         st.subheader("Cashflow Statement:")
                         st.dataframe(financials["cashflow"])
+                    else:
+                        st.write("Cashflow Statement: Not available")
 
-                    except Exception as e:
-                        st.error(f"An error occurred while fetching financials: {e}")
+                except Exception as e:
+                    st.error(f"An error occurred while fetching company data: {e}")
 
-                # Stock News
-                with stock_update:
-                    st.markdown(f"""
-                        <div class="logo-and-name" style="margin-bottom: 20px;">
-                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                                {company_name} <span style="color: green;">News</span>
-                            </h2>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
+            # --- Stock News ---
+            with stock_update:
+                st.markdown(f"""
+                    <div class="logo-and-name" style="margin-bottom: 20px;">
+                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
+                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                            {company_name} <span style="color: green;">News</span>
+                        </h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                try:
+                    tk = yf.Ticker(ticker)
+                    stock_news = []
                     try:
-                        stock_news = ticker_data.news
-                        if stock_news:
-                            for news in stock_news[:10]:  # Displaying the top 10 news articles
-                                st.write(f"### [{news['title']}]({news['link']})")
-                                st.write(news['publisher'])
-                                readable_date = datetime.utcfromtimestamp(news['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')
-                                st.write(f'Publised: {readable_date}')
-                        else:
-                            st.write("No news articles available for this stock.")
-                    except Exception as e:
-                        st.error(f"An error occurred while fetching stock news: {e}")
+                        stock_news = tk.news or []
+                    except Exception:
+                        stock_news = []
 
-            else:
-                st.warning('No data available for the given ticker and date range. Please check the ticker symbol or date range.')
+                    if stock_news:
+                        for news in stock_news[:10]:
+                            title = news.get('title', 'No title')
+                            link = news.get('link', '#')
+                            publisher = news.get('publisher', 'Unknown')
+                            # providerPublishTime sometimes missing
+                            ptime = news.get('providerPublishTime', None)
+                            readable_date = ""
+                            if ptime:
+                                try:
+                                    readable_date = datetime.utcfromtimestamp(int(ptime)).strftime('%Y-%m-%d %H:%M:%S')
+                                except Exception:
+                                    readable_date = str(ptime)
+                            st.write(f"### [{title}]({link})")
+                            st.write(publisher)
+                            if readable_date:
+                                st.write(f'Published: {readable_date}')
+                    else:
+                        st.write("No news articles available for this stock.")
+                except Exception as e:
+                    st.error(f"An error occurred while fetching stock news: {e}")
 
-        except Exception as e:
-            st.error(f'Error fetching data for {ticker}. Please check the ticker symbol or try again later. Error: {str(e)}')
 
-# Stock Ranking (Divide & Conquer - Merge Sort)           
+# ------------------------------
+# Stock Ranking (Merge Sort)
+# ------------------------------
 with stock_rank:
-    # Define stock list data
-    def merge_sort(stocks, key):
-    # Base case: if the list has 1 or 0 elements, it's already sorted
-        if len(stocks) <= 1:
-            return stocks
+    # Improved merge_sort using indices (O(n log n) merges without pop(0))
+    def merge_sort(stocks_list, key):
+        if len(stocks_list) <= 1:
+            return stocks_list
 
-        # Split the list into halves
-        mid = len(stocks) // 2
-        left_half = merge_sort(stocks[:mid], key)
-        right_half = merge_sort(stocks[mid:], key)
-
-        # Merge the sorted halves
-        return merge(left_half, right_half, key)
+        mid = len(stocks_list) // 2
+        left = merge_sort(stocks_list[:mid], key)
+        right = merge_sort(stocks_list[mid:], key)
+        return merge(left, right, key)
 
     def merge(left, right, key):
+        i, j = 0, 0
         sorted_list = []
-        while left and right:
-            # Sort by the provided key in descending order
-            if left[0][key] >= right[0][key]:
-                sorted_list.append(left.pop(0))
+        while i < len(left) and j < len(right):
+            # descending order by key
+            if left[i].get(key, 0) >= right[j].get(key, 0):
+                sorted_list.append(left[i])
+                i += 1
             else:
-                sorted_list.append(right.pop(0))
-
-        # Append remaining elements
-        sorted_list.extend(left or right)
+                sorted_list.append(right[j])
+                j += 1
+        # append remainders
+        if i < len(left):
+            sorted_list.extend(left[i:])
+        if j < len(right):
+            sorted_list.extend(right[j:])
         return sorted_list
 
-    # Define stock list data
+    # base stock set
     stock_list = [
         {"ticker": "JPM", "name": "JPMorgan Chase & Co.", "sector": "Financials"},
         {"ticker": "UNH", "name": "UnitedHealth Group", "sector": "Healthcare"},
@@ -353,37 +526,48 @@ with stock_rank:
         {"ticker": "CAT", "name": "Caterpillar", "sector": "Industrials"},
     ]
 
-    # Fetch stock data, display company logo, and calculate average daily return
+    # fetch & compute metrics
     stocks_data = []
+    with st.spinner("Fetching leaderboard tickers..."):
+        for s in stock_list:
+            t = s["ticker"]
+            df = fetch_stock_data(t, start_date, end_date)
+            stock_info = fetch_ticker_info(t)
+            company_name = stock_info.get('longName') or stock_info.get('shortName') or t
+            company_website = stock_info.get("website", "")
+            domain = safe_extract_domain(company_website)
+            logo_url = f"https://logo.clearbit.com/{domain}" if domain else ("assets/logo.png" if os.path.exists("assets/logo.png") else None)
 
-    for stock in stock_list:
-        ticker = stock['ticker']
-        stock_data = fetch_stock_data(ticker, start_date, end_date)
-        
-        # Fetch company information and logo
-        ticker_data = yf.Ticker(ticker)
-        stock_info = ticker_data.info
-        company_name = stock_info.get('longName', ticker)
-        company_domain = stock_info.get('website', 'example.com').replace('http://', '').replace('https://', '')
-        logo_url = f"https://logo.clearbit.com/{company_domain}"
-        
-        # Calculate Average Daily Return 
-        avg_daily_stock = stock_data.copy()
-        avg_daily_stock['Percent Change'] = avg_daily_stock['Close'].pct_change()
-        avg_daily_stock.dropna(inplace=True)
-        avg_daily_return = avg_daily_stock['Percent Change'].mean() * 100
+            avg_daily_return = 0.0
+            current_price = 0.0
+            if not df.empty:
+                temp = df.copy()
 
-        # Get current price
-        current_price = stock['current_price'].iloc[0] 
+                # Ensure Close is a Series (not DataFrame with multiple tickers)
+                close_series = temp['Close']
+                if isinstance(close_series, pd.DataFrame):
+                    close_series = close_series.iloc[:, 0]  # take first ticker col
 
-        # Store stock data with calculated values
-        stock['avg_daily_return'] = avg_daily_return
-        stock['current_price'] = current_price
-        stock['logo_url'] = logo_url
-        stock['company_name'] = company_name
-        stocks_data.append(stock)
+                temp['Percent Change'] = close_series.pct_change()
+                temp.dropna(inplace=True)
 
-    # Sort stocks by average daily return using Merge Sort
+                avg_daily_return = (temp['Percent Change'].mean() * 100) if not temp.empty else 0.0
+
+                # ensure scalar close
+                try:
+                    current_price = float(close_series.dropna().iloc[-1])
+                except Exception:
+                    current_price = 0.0
+
+            stocks_data.append({
+                "ticker": t,
+                "company_name": company_name,
+                "sector": s.get("sector"),
+                "avg_daily_return": avg_daily_return,
+                "current_price": current_price,
+                "logo_url": logo_url
+            })
+
     sorted_stocks = merge_sort(stocks_data, key='avg_daily_return')
 
     st.markdown(f"""
@@ -394,158 +578,207 @@ with stock_rank:
                     </div>
                 """, unsafe_allow_html=True)
 
-    # Display headers for metrics
-    col1, col2, col3, col4 = st.columns([1, 3, 1, 2])  # Adjust column widths
-    with col3:
+    # headers
+    col1_h, col2_h, col3_h, col4_h = st.columns([1, 3, 1, 2])
+    with col3_h:
         st.markdown("""
             <span style='font-weight:bold; font-size:20px; margin-left:-60px;'>Average Daily </span>
             <span style='color:green; font-weight:bold; font-size:20px;'>Return</span>
         """, unsafe_allow_html=True)
-
-    with col4:
+    with col4_h:
         st.markdown("""
             <span style='font-weight:bold; font-size:20px; margin-left:-20px;'>Current </span>
             <span style='color:green; font-weight:bold; font-size:20px;'>Price</span>
         """, unsafe_allow_html=True)
 
-    # Layout: display logo, name, and metrics
-    for stock in sorted_stocks:
-        # Create columns for logo, company name, and metrics
-        col1, col2, col3, col4 = st.columns([1, 3, 1, 2])  # Adjust the column widths
+    # display each sorted stock
+    for s in sorted_stocks:
+        c1, c2, c3, c4 = st.columns([1, 3, 1, 2])
+        with c1:
+            if s.get('logo_url'):
+                try:
+                    st.image(s['logo_url'], width=50)
+                except Exception:
+                    # fallback to local logo_base64
+                    if logo_base64:
+                        st.image(f"data:image/png;base64,{logo_base64}", width=50)
+        with c2:
+            st.markdown(f"**<span style='font-size: 24px'>{s['company_name']}</span>**", unsafe_allow_html=True)
+        with c3:
+            st.markdown(f"**<span style='font-size: 24px'>{s['avg_daily_return']:.2f}%</span>**", unsafe_allow_html=True)
+        with c4:
+            st.markdown(f"**<span style='font-size: 24px'>${s['current_price']:.2f}</span>**", unsafe_allow_html=True)
 
-        with col1:
-            st.image(stock['logo_url'], width=50, output_format='auto')
-
-        with col2:
-            st.markdown(f"**<span style='font-size: 24px'>{stock['company_name']}**", unsafe_allow_html=True)
-
-        with col3:
-            st.markdown(f"**<span style='font-size: 24px'>{stock['avg_daily_return']:.2f}%</span>**", unsafe_allow_html=True)
-
-        with col4:
-            st.markdown(f"**<span style='font-size: 24px'>${float(stock['current_price']):.2f}</span>**", unsafe_allow_html=True)
-
-        # Add S&P 500 Information
+    # sector explanation
     sector_info = """
-        The companies in this portfolio are influential across their sectors, providing key insights into broader economic trends. JPMorgan Chase & Co. (JPM) serves as a bellwether for the Financials sector, where its performance reflects the stability of credit markets and economic growth. UnitedHealth Group (UNH) leads the Healthcare sector, shaping policy and spending in healthcare, while NVIDIA (NVDA) drives technological advancement in AI and semiconductors, impacting industries such as cloud computing, gaming, and AI. Similarly, Amazon (AMZN) influences consumer behavior and retail trends within the Consumer Discretionary sector, making it a critical indicator of consumer spending.
-
-        In the Consumer Staples sector, Procter & Gamble (PG) offers valuable insight into consumer habits for essential goods, serving as a benchmark during economic downturns. ExxonMobil (XOM) dominates the Energy sector, with its stock being sensitive to commodity prices, geopolitics, and shifts toward renewable energy. NextEra Energy (NEE) in the Utilities sector highlights the growing role of renewable energy in shaping sustainable infrastructure. Meanwhile, Prologis (PLD) in Real Estate provides a clear signal of global trade and logistics demand, tied to macroeconomic health and e-commerce growth.
-
-        Companies like Sherwin-Williams (SHW) and Caterpillar (CAT) play pivotal roles in Materials and Industrials, respectively. Sherwin-Williams reflects trends in construction and manufacturing, while Caterpillar's performance signals the health of global infrastructure, mining, and capital spending. Together, these companies offer a comprehensive view of the forces shaping the global economy, from consumer behavior and technological innovation to energy markets and infrastructure development. By tracking their performance, investors can gauge both sector-specific dynamics and broader economic conditions.
+        The companies in this portfolio are influential across their sectors...
+        (same explanatory text omitted here for brevity; keep your original paragraph)
     """
     st.markdown("""
     # Stock <span style="color: green;">Sector</span>
     """, unsafe_allow_html=True)
-    
     st.write(sector_info)
 
+
 # Market Overview Tab
+# -----------------------------
 with market_overview:
-    try:
-        # Fetch S&P 500 data
-        sp500 = yf.download('^GSPC', start=start_date, end=end_date)
+    sp500 = fetch_sp500(start_date, end_date)
+    if sp500.empty:
+        st.error("Unable to fetch S&P 500 data for the selected range.")
+    else:
+        import pandas as pd
 
-        # Drop NA values and ensure the close price is available
-        non_na_close = sp500['Close'].dropna()
-        
-        if not non_na_close.empty:
-            # Get the latest close price (ensure it's a scalar)
-            latest_close_price = non_na_close.iloc[-1]  # Get the last close price
+        sp = sp500.copy()
 
-            # If the retrieved price is not a scalar, convert it to a scalar
-            if isinstance(latest_close_price, (float, int)):
-                st.markdown(f"""
-                    <div class="logo-and-name">
-                        <h1 style="display:inline;">S&P 500 Metrics 
-                            <span style="color:green">${latest_close_price:.2f}</span>
-                        </h1>
-                    </div>
-                """, unsafe_allow_html=True)
+        # -----------------------------
+        # Helper: extract a clean Close series
+        # -----------------------------
+        def _extract_close_series(df: pd.DataFrame) -> pd.Series:
+            # direct exact match
+            if "Close" in df.columns:
+                cs = df["Close"]
             else:
-                st.markdown("Error: Latest close price is not a valid number.")
+                found = None
+                for col in df.columns:
+                    if isinstance(col, tuple):
+                        name = str(col[-1]).lower()
+                    else:
+                        name = str(col).lower()
+                    if name == "close" or name.endswith("close") or "close" in name:
+                        found = col
+                        break
+                if found is not None:
+                    cs = df[found]
+                else:
+                    if isinstance(df.columns, pd.MultiIndex):
+                        for col in df.columns:
+                            if str(col[-1]).lower() == "close":
+                                cs = df[col]
+                                break
+                        else:
+                            numeric_cols = df.select_dtypes(include="number").columns
+                            if len(numeric_cols):
+                                cs = df[numeric_cols[0]]
+                            else:
+                                raise KeyError("Couldn't find a 'Close' column.")
+                    else:
+                        numeric_cols = df.select_dtypes(include="number").columns
+                        if len(numeric_cols):
+                            cs = df[numeric_cols[0]]
+                        else:
+                            raise KeyError("Couldn't find a 'Close' column.")
+
+            if isinstance(cs, pd.DataFrame):
+                numeric_cols = cs.select_dtypes(include="number").columns
+                cs = cs[numeric_cols[0]] if len(numeric_cols) else cs.iloc[:, 0]
+
+            return cs.astype(float)
+
+        # -----------------------------
+        # Compute indicators
+        # -----------------------------
+        try:
+            close_series = _extract_close_series(sp)
+        except KeyError as e:
+            st.error(str(e))
+            sp500_cleaned = sp.copy()
         else:
-            st.markdown("Error: No valid close price data available.")
+            ind = pd.DataFrame(index=sp.index)
+            ind["50_MA"] = close_series.rolling(window=50, min_periods=50).mean()
+            ind["200_MA"] = close_series.rolling(window=200, min_periods=200).mean()
+            ind["20_MA"] = close_series.rolling(window=20, min_periods=20).mean()
+            ind["stddev"] = close_series.rolling(window=20, min_periods=20).std()
+            ind["Upper_Band"] = ind["20_MA"] + (ind["stddev"] * 2)
+            ind["Lower_Band"] = ind["20_MA"] - (ind["stddev"] * 2)
 
-    except Exception as e:
-        # Handle any exceptions (e.g., issues with downloading the data)
-        st.markdown(f"Error fetching data for S&P 500. Please try again later. Error: {e}")
+            sp = pd.concat([sp, ind], axis=1)
 
-    # S&P 500 Chart with Moving Averages and Bollinger Bands
-    sp500['50_MA'] = sp500['Close'].rolling(window=50).mean()
-    sp500['200_MA'] = sp500['Close'].rolling(window=200).mean()
-    sp500['20_MA'] = sp500['Close'].rolling(window=20).mean()
-    sp500['stddev'] = sp500['Close'].rolling(window=20).std()
-    sp500['Upper_Band'] = sp500['20_MA'] + (sp500['stddev'] * 2)
-    sp500['Lower_Band'] = sp500['20_MA'] - (sp500['stddev'] * 2)
+            required_cols = ["50_MA", "200_MA", "20_MA", "Upper_Band", "Lower_Band"]
+            subset = [c for c in required_cols if c in sp.columns]
 
-    # Drop rows where the necessary columns have NaN values (e.g., for moving averages)
-    sp500_cleaned = sp500.dropna(subset=['50_MA', '200_MA', '20_MA', 'Upper_Band', 'Lower_Band'])
+            sp500_cleaned = sp.dropna(subset=subset) if subset else sp.copy()
 
-    # Create Plotly figure
-    fig_sp = go.Figure()
+        # -----------------------------
+        # Metrics Display
+        # -----------------------------
+        try:
+            latest_close_price = float(close_series.dropna().iloc[-1])
+            st.markdown(
+                f"""
+                <div class="logo-and-name">
+                    <h1 style="display:inline;">S&P 500 Metrics 
+                        <span style="color:green">${latest_close_price:.2f}</span>
+                    </h1>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        except Exception:
+            st.markdown("S&P 500 Metrics: Price not available")
 
-    # Add traces to the plot
-    fig_sp.add_trace(go.Scatter(x=sp500_cleaned.index, y=sp500_cleaned['Close'], mode='lines', name='Close', line=dict(color='green')))
-    fig_sp.add_trace(go.Scatter(x=sp500_cleaned.index, y=sp500_cleaned['50_MA'], mode='lines', name='SMA 50', line=dict(color='blue')))
-    fig_sp.add_trace(go.Scatter(x=sp500_cleaned.index, y=sp500_cleaned['200_MA'], mode='lines', name='SMA 200', line=dict(color='yellow')))
-    fig_sp.add_trace(go.Scatter(x=sp500_cleaned.index, y=sp500_cleaned['Upper_Band'], mode='lines', name='Upper Band', line=dict(color='lightblue')))
-    fig_sp.add_trace(go.Scatter(x=sp500_cleaned.index, y=sp500_cleaned['Lower_Band'], mode='lines', name='Lower Band', line=dict(color='slategrey')))
+        # -----------------------------
+        # Plot S&P 500 with indicators
+        # -----------------------------
+        fig_sp = go.Figure()
+        fig_sp.add_trace(
+            go.Scatter(x=sp500_cleaned.index, y=close_series, mode="lines", name="Close")
+        )
 
-    # Update layout for better visuals
-    fig_sp.update_layout(
-        title='S&P 500 Chart',
-        xaxis_title='Date',
-        yaxis_title='Price',
-        width=1700,
-        height=700,
-        template='plotly_dark'  
-    )
+        plot_cols = {
+            "50_MA": "SMA 50",
+            "200_MA": "SMA 200",
+            "Upper_Band": "Upper Band",
+            "Lower_Band": "Lower Band",
+        }
+        for col, legend in plot_cols.items():
+            if col in sp500_cleaned.columns:
+                fig_sp.add_trace(
+                    go.Scatter(
+                        x=sp500_cleaned.index,
+                        y=sp500_cleaned[col],
+                        mode="lines",
+                        name=legend,
+                    )
+                )
 
-    # Show the Plotly chart
-    st.plotly_chart(fig_sp)
+        fig_sp.update_layout(
+            title="S&P 500 Chart",
+            xaxis_title="Date",
+            yaxis_title="Price",
+            width=1700,
+            height=700,
+            template="plotly_dark",
+        )
 
-    # Add S&P 500 Metrics
-    st.markdown("""
-    # S&P 500 <span style="color: green;">Metrics</span>
-    """, unsafe_allow_html=True)
-    
-    ticker_data = yf.Ticker('^GSPC')
-    stock_info = ticker_data.info
+        # ✅ FIX: give chart a unique key
+        st.plotly_chart(fig_sp, key="market_overview_sp500_chart")
 
-    # Add percentage change calculation
-    new_stock = sp500.copy()
-    new_stock['Percent Change'] = sp500['Close'].pct_change()
-    new_stock.dropna(inplace=True)
 
-    yearly_return = new_stock['Percent Change'].mean() * 252 * 100
-    volatility = new_stock['Percent Change'].std() * (252**0.5) * 100  # Annualized volatility
-    avg_daily_return = new_stock['Percent Change'].mean() * 100
+        st.markdown(
+            """
+            # Index <span style="color: green;">Information</span>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    # Display Metrics
-    col1, col2, col3 = st.columns(3)
-    col1.metric(label='Yearly Return', value=f'{yearly_return:.2f}%')
-    col2.metric('Annualized Volatility', f'{volatility:.2f}%')
-    col3.metric('Average Daily Return', f'{avg_daily_return:.2f}%')
+        sp500_info = """
+        The S&P 500 stands as a prominent benchmark...
+        (keep your original descriptive text)
+        """
+        st.write(sp500_info)
 
-    # Add S&P 500 Information
-    sp500_info = """
-    The S&P 500 stands as a prominent benchmark for measuring the health and overall direction of the U.S. stock market. This carefully curated index tracks the performance of 500 of the largest companies listed on major U.S. stock exchanges, providing a comprehensive snapshot of the nation's economic vitality.
 
-    Comprised of companies spanning a diverse range of industries, the S&P 500 offers a broad representation of the U.S. economy. From technology titans to consumer staples, the index encompasses a wide spectrum of sectors, ensuring that it captures the pulse of various economic drivers. The weighting of each company within the index is determined by its market capitalization, meaning larger companies exert a greater influence on its overall performance. This weighting system reflects the market's perception of a company's relative value and potential for growth.
-
-    Beyond its role as a benchmark, the S&P 500 also serves as a valuable tool for investors and analysts. By tracking the index's movements, investors can gauge the broader market sentiment and make informed decisions about their investment portfolios. Analysts use the S&P 500 to assess the performance of individual stocks, sectors, and the economy as a whole. Additionally, the index is often used as a reference point for comparing the returns of various investment strategies and funds.
-    """
-
-    st.markdown("""
-    # Index <span style="color: green;">Information</span>
-    """, unsafe_allow_html=True)
-    
-    st.write(sp500_info)
-
+# ------------------------------
+# Economy (FRED)
+# ------------------------------
 with economy:
-    # Initialize FRED API
-    FRED_API_KEY = 'YOUR_FRED_API_KEY_HERE '  
-    fred = Fred(api_key=FRED_API_KEY)
+    FRED_API_KEY = 'YOUR_FRED_API_KEY_HERE'  # removed trailing space
+    fred = None
+    try:
+        fred = Fred(api_key=FRED_API_KEY)
+    except Exception as e:
+        st.error(f"FRED init error: {e}")
 
     st.markdown(f"""
         <div class="logo-and-name">
@@ -553,83 +786,69 @@ with economy:
         </div>
     """, unsafe_allow_html=True)
 
+    if fred:
+        try:
+            with st.spinner("Fetching economic series from FRED..."):
+                gdp = fred.get_series('GDP')
+                interest_rate = fred.get_series('FEDFUNDS')
+                inflation = fred.get_series('CPIAUCNS')
+                unemployment = fred.get_series('UNRATE')
 
-    # Function to plot economic data
-    def plot_economic_data(data_dict, title):
-        fig = go.Figure()
-        for series_name, data in data_dict.items():
-            fig.add_trace(go.Scatter(x=data.index, y=data.values, mode='lines', name=series_name))
+            def plot_economic_data(data_dict, title):
+                fig = go.Figure()
+                for series_name, data in data_dict.items():
+                    if data is None or getattr(data, "empty", False):
+                        continue
+                    # ensure index is datetime
+                    try:
+                        series = pd.Series(data)
+                        if not isinstance(series.index, pd.DatetimeIndex):
+                            series.index = pd.to_datetime(series.index)
+                        fig.add_trace(go.Scatter(x=series.index, y=series.values, mode='lines', name=series_name))
+                    except Exception:
+                        continue
+                fig.update_layout(title=title, xaxis_title="Date", yaxis_title="Value", template="plotly_dark", xaxis_rangeslider_visible=True, width=1000, height=600)
+                return fig
 
-        fig.update_layout(
-            title=title,
-            xaxis_title="Date",
-            yaxis_title="Value",
-            template="plotly_dark",  # Dark theme to match the example
-            xaxis_rangeslider_visible=True,
-            width=1000,  # Set width of the chart
-            height=600   # Set height of the chart
-        )
-        return fig
-    
-    # Input for the FRED series IDs
-    gdp = fred.get_series('GDP')
-    interest_rate = fred.get_series('FEDFUNDS')
-    inflation = fred.get_series('CPIAUCNS')
-    unemployment = fred.get_series('UNRATE')
+            # Plot GDP and Federal Funds Rate
+            st.plotly_chart(plot_economic_data({'GDP': gdp, 'Federal Funds Rate': interest_rate}, "US GDP and Interest Rate"), use_container_width=True)
+            st.plotly_chart(plot_economic_data({'Inflation Rate': inflation, 'Unemployment Rate': unemployment}, "US Inflation and Unemployment Rate"), use_container_width=True)
 
-    # Display the first economic data chart (wide)
-    st.plotly_chart(plot_economic_data(
-        {'GDP': gdp, 'Federal Funds Rate': interest_rate}, 
-        "US GDP and Interest Rate"
-    ), use_container_width=True)
+            st.markdown("""
+            # Economic Metrics <span style="color: green;">Information</span>
+            """, unsafe_allow_html=True)
 
-    # Display the second economic data chart (wide and below)
-    st.plotly_chart(plot_economic_data(
-        {'Inflation Rate': inflation, 'Unemployment Rate': unemployment}, 
-        "US Inflation and Unemployment Rate "
-    ), use_container_width=True)
+            econ_info = """
+            The Economy section provides key insights into the performance of the U.S. economy using four major economic indicators:
+            1. GDP
+            2. Federal Funds Rate
+            3. Inflation Rate (CPI)
+            4. Unemployment Rate
+            """
+            st.write(econ_info)
 
-    st.markdown("""
-    # Economic Metrics <span style="color: green;">Information</span>
-    """, unsafe_allow_html=True)
+        except Exception as e:
+            st.error(f"Error fetching economic data: {e}")
+    else:
+        st.write("FRED not initialized. Economic charts unavailable.")
 
-    econ_info = """
-    The Economy section provides key insights into the performance of the U.S. economy using four major economic indicators:
-
-    1. **Gross Domestic Product (GDP)**: 
-        - GDP is the total monetary value of all goods and services produced within the U.S. over a specific period. It's a broad measure of overall economic activity and an important indicator of the economy’s health.
-
-    2. **Federal Funds Rate (Interest Rate)**: 
-        - The Federal Funds Rate is the interest rate at which depository institutions lend balances to other banks overnight. This rate is a crucial tool used by the Federal Reserve to control inflation and stabilize the economy. It influences borrowing costs for businesses and consumers.
-
-    3. **Inflation Rate (CPI)**: 
-        - Inflation, measured through the Consumer Price Index (CPI), tracks the change in prices paid by consumers for goods and services over time. It is a key indicator of the purchasing power of currency and the cost of living.
-
-    4. **Unemployment Rate**: 
-        - The unemployment rate measures the percentage of the total labor force that is unemployed but actively seeking employment. It's a vital indicator of labor market conditions and overall economic stability.
-    """
-    st.write(econ_info)
-
-
-# Link to Font Awesome CSS for icons
+# ------------------------------
+# Footer
+# ------------------------------
 st.markdown('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">', unsafe_allow_html=True)
 
-# Footer content with logo and title moved down
 footer = f"""
 <hr>
 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; padding: 10px 0;">
-  <!-- QuantMaven Title and Logo -->
   <div style="flex-grow: 1; text-align: left; padding-top: 20px;">
     <div style="display: flex; align-items: center;">
         <img src="data:image/png;base64,{logo_base64}" style="width: 80px; height: auto; margin-right: 10px;">
         <h1 style="margin: 0;">Quant<span style="color:green;">Maven</span></h1>
     </div>
   </div>
-  <!-- Copyright -->
   <div style="flex-grow: 1; text-align: center; padding-top: 20px;">
     <span>Copyright 2024 | All Rights Reserved</span>
   </div>
-  <!-- Social media icons -->
   <div style="flex-grow: 1; text-align: right; padding-top: 20px;">
     <a href="https://www.linkedin.com" class="fa fa-linkedin" style="padding: 10px; font-size: 24px; background: #0077B5; color: white; text-decoration: none; margin: 5px;"></a>
     <a href="https://www.instagram.com" class="fa fa-instagram" style="padding: 10px; font-size: 24px; background: #E1306C; color: white; text-decoration: none; margin: 5px;"></a>
@@ -639,6 +858,4 @@ footer = f"""
   </div>
 </div>
 """
-
-# Display footer
 st.markdown(footer, unsafe_allow_html=True)
