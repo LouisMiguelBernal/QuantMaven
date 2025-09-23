@@ -441,30 +441,43 @@ with trading_dashboard:
 
             # --- Stock News ---
             with stock_update:
-                    st.markdown(f"""
-                        <div class="logo-and-name" style="margin-bottom: 20px;">
-                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                                {company_name} <span style="color: green;">News</span>
-                            </h2>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                    try:
-                        ticker_obj = yf.Ticker(ticker)  # ensure ticker is a yfinance object
-                        stock_news = ticker_obj.news    # now this works
-                        if stock_news:
-                            for news in stock_news[:10]:  # Displaying the top 10 news articles
-                                st.write(f"### [{news['title']}]({news['link']})")
-                                st.write(news['publisher'])
+                st.markdown(f"""
+                    <div class="logo-and-name" style="margin-bottom: 20px;">
+                        <img class="logo-img" src="{logo_url}" alt="Company Logo" 
+                            onerror="this.style.display='none'" 
+                            style="border-radius: 50%; width: 50px; height: 50px;">
+                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                            {company_name} <span style="color: green;">News</span>
+                        </h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                try:
+                    ticker_obj = yf.Ticker(ticker)  # make sure it's a yfinance object
+                    stock_news = ticker_obj.news
+
+                    if stock_news:
+                        for news in stock_news[:10]:  # top 10 articles
+                            title = news.get("title", "No title available")
+                            link = news.get("link", "#")
+                            publisher = news.get("publisher", "Unknown publisher")
+                            publish_time = news.get("providerPublishTime")
+
+                            st.write(f"### [{title}]({link})")
+                            st.write(publisher)
+
+                            if publish_time:
                                 readable_date = datetime.utcfromtimestamp(
-                                    news['providerPublishTime']
+                                    publish_time
                                 ).strftime('%Y-%m-%d %H:%M:%S')
                                 st.write(f'Published: {readable_date}')
-                        else:
-                            st.write("No news articles available for this stock.")
-                    except Exception as e:
-                        st.error(f"An error occurred while fetching stock news: {e}")
+                            st.markdown("---")
+                    else:
+                        st.write("No news articles available for this stock.")
+
+                except Exception as e:
+                    st.error(f"An error occurred while fetching stock news: {e}")
+
     else:
         st.warning('No data available for the given ticker and date range. Please check the ticker symbol or date range.')
     
