@@ -451,18 +451,20 @@ with trading_dashboard:
                         """, unsafe_allow_html=True)
                         
                     try:
-                        stock_news = ticker.news
+                        ticker_obj = yf.Ticker(ticker)  # ensure ticker is a yfinance object
+                        stock_news = ticker_obj.news    # now this works
                         if stock_news:
                             for news in stock_news[:10]:  # Displaying the top 10 news articles
                                 st.write(f"### [{news['title']}]({news['link']})")
                                 st.write(news['publisher'])
-                                readable_date = datetime.utcfromtimestamp(news['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')
-                                st.write(f'Publised: {readable_date}')
+                                readable_date = datetime.utcfromtimestamp(
+                                    news['providerPublishTime']
+                                ).strftime('%Y-%m-%d %H:%M:%S')
+                                st.write(f'Published: {readable_date}')
                         else:
                             st.write("No news articles available for this stock.")
                     except Exception as e:
                         st.error(f"An error occurred while fetching stock news: {e}")
-
     else:
         st.warning('No data available for the given ticker and date range. Please check the ticker symbol or date range.')
     
