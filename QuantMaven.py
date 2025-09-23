@@ -368,24 +368,25 @@ with trading_dashboard:
 
                 # ---- INFO TABLE ----
                 st.subheader("Stock Information Chart")
-
+                
                 # Extract OHLC safely
                 df_display = df[['Open', 'High', 'Low', 'Close']].dropna().copy()
-
-                # If columns are MultiIndex (e.g., ('NVDA','Open')), flatten them
+                
+                # If columns are MultiIndex (e.g., ('AAPL','Open')), flatten them
                 if isinstance(df_display.columns, pd.MultiIndex):
-                    df_display.columns = [col[-1] for col in df_display.columns]  # keep only Open/High/Low/Close
-
+                    df_display.columns = [col[1] if len(col) > 1 else col[0] for col in df_display.columns]
+                
                 # Reset index -> make Date a column
                 df_display = df_display.reset_index()
-
+                
                 # Rename first column explicitly to "Date"
                 df_display.rename(columns={df_display.columns[0]: "Date"}, inplace=True)
-
-                # Drop any accidental duplicates
+                
+                # Drop duplicates just in case
                 df_display = df_display.loc[:, ~df_display.columns.duplicated()]
-
+                
                 st.dataframe(df_display)
+
 
 
 
@@ -859,3 +860,4 @@ footer = f"""
 </div>
 """
 st.markdown(footer, unsafe_allow_html=True)
+
