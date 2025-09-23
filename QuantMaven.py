@@ -392,92 +392,80 @@ with trading_dashboard:
 
             # --- Company Data ---
             with company_data:
-                st.markdown(f"""
-                    <div class="logo-and-name" style="margin-bottom: 20px;">
-                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                            {company_name} <span style="color: green;">Information</span>
-                        </h2>
-                    </div>
-                """, unsafe_allow_html=True)
+                    try:
+                       # Display company information header with a logo
+                        st.markdown(f"""
+                        <div class="logo-and-name" style="margin-bottom: 20px;">
+                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
+                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                                {company_name} <span style="color: green;">Information</span>
+                            </h2>
+                        </div>
+                        """, unsafe_allow_html=True)
 
-                try:
-                    ccol1, ccol2 = st.columns(2)
-                    ccol1.metric("Sector", stock_info.get("sector", "N/A"))
-                    ccol2.metric("Industry", stock_info.get("industry", "N/A"))
-                    st.metric("Website", stock_info.get("website", "N/A"))
+       
+                        col1, col2 = st.columns(2)
+                        col1.metric("Sector", stock_info.get("sector", "N/A"))
+                        col2.metric("Industry", stock_info.get("industry", "N/A"))
+                        st.metric("Website", stock_info.get("website", "N/A"))
 
-                    if 'longBusinessSummary' in stock_info:
-                        st.subheader('Company Bio')
-                        st.write(stock_info['longBusinessSummary'])
-                    else:
-                        st.write("Company bio is not available.")
+                        # Display company bio
+                        if 'longBusinessSummary' in stock_info:
+                            st.subheader('Company Bio')
+                            st.write(stock_info['longBusinessSummary'])
+                        else:
+                            st.write("Company bio is not available.")
 
-                    # Fetch financials (cached)
-                    financials = fetch_financials(ticker)
+                        # Fetch financial data
+                        stock = yf.Ticker(ticker)
+                        financials = {
+                            "income_statement": stock.financials,
+                            "balance_sheet": stock.balance_sheet,
+                            "cashflow": stock.cashflow,
+                            "calendar": stock.calendar,
+                        }
 
-                    st.header('Company Financials')
-                    if not financials["financials"].empty:
+                        # Display financials
+                        st.header('Company Financials')
                         st.subheader("Income Statement:")
-                        st.dataframe(financials["financials"])
-                    else:
-                        st.write("Income Statement: Not available")
+                        st.dataframe(financials["income_statement"])
 
-                    if not financials["balance_sheet"].empty:
                         st.subheader("Balance Sheet:")
                         st.dataframe(financials["balance_sheet"])
-                    else:
-                        st.write("Balance Sheet: Not available")
 
-                    if not financials["cashflow"].empty:
                         st.subheader("Cashflow Statement:")
                         st.dataframe(financials["cashflow"])
-                    else:
-                        st.write("Cashflow Statement: Not available")
 
-                except Exception as e:
-                    st.error(f"An error occurred while fetching company data: {e}")
+                    except Exception as e:
+                        st.error(f"An error occurred while fetching financials: {e}")
 
             # --- Stock News ---
             with stock_update:
-                st.markdown(f"""
-                    <div class="logo-and-name" style="margin-bottom: 20px;">
-                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                            {company_name} <span style="color: green;">News</span>
-                        </h2>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                try:
-                    tk = yf.Ticker(ticker)
-                    stock_news = []
+                    st.markdown(f"""
+                        <div class="logo-and-name" style="margin-bottom: 20px;">
+                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
+                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                                {company_name} <span style="color: green;">News</span>
+                            </h2>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
                     try:
-                        stock_news = tk.news or []
-                    except Exception:
-                        stock_news = []
+                        stock_news = ticker.news
+                        if stock_news:
+                            for news in stock_news[:10]:  # Displaying the top 10 news articles
+                                st.write(f"### [{news['title']}]({news['link']})")
+                                st.write(news['publisher'])
+                                readable_date = datetime.utcfromtimestamp(news['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')
+                                st.write(f'Publised: {readable_date}')
+                        else:
+                            st.write("No news articles available for this stock.")
+                    except Exception as e:
+                        st.error(f"An error occurred while fetching stock news: {e}")
 
-                    if stock_news:
-                        for news in stock_news[:10]:
-                            title = news.get('title', 'No title')
-                            link = news.get('link', '#')
-                            publisher = news.get('publisher', 'Unknown')
-                            # providerPublishTime sometimes missing
-                            ptime = news.get('providerPublishTime', None)
-                            readable_date = ""
-                            if ptime:
-                                try:
-                                    readable_date = datetime.utcfromtimestamp(int(ptime)).strftime('%Y-%m-%d %H:%M:%S')
-                                except Exception:
-                                    readable_date = str(ptime)
-                            st.write(f"### [{title}]({link})")
-                            st.write(publisher)
-                            if readable_date:
-                                st.write(f'Published: {readable_date}')
-                    else:
-                        st.write("No news articles available for this stock.")
-                except Exception as e:
-                    st.error(f"An error occurred while fetching stock news: {e}")
+    else:
+        st.warning('No data available for the given ticker and date range. Please check the ticker symbol or date range.')
+    
 
 
 # ------------------------------
