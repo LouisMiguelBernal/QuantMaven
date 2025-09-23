@@ -309,144 +309,175 @@ with trading_dashboard:
             # ---- TABS ----
             stock_overview, company_data, stock_update = st.tabs(['Stock Overview', 'Company Data', 'Stock News'])
 
-           # Stock Overview Tab
-                stock_overview, company_data, stock_update = st.tabs(['Stock Overview', 'Company Data', 'Stock News'])
+            # ---- STOCK OVERVIEW ----
+            with stock_overview:
+                st.markdown(f"""
+                    <div class="logo-and-name" style="margin-bottom: 20px;">
+                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
+                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                            {company_name} <span style="color: green;">Metrics</span>
+                        </h2>
+                    </div>
+                """, unsafe_allow_html=True)
 
-                with stock_overview:
-                    st.markdown(f"""
-                        <div class="logo-and-name" style="margin-bottom: 20px;">
-                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                                {company_name} <span style="color: green;">Metrics</span>
-                            </h2>
-                        </div>
-                    """, unsafe_allow_html=True)
+                # Metrics calculations
+               # ---- METRICS ----
+                returns = close_series.pct_change().dropna()
+                avg_daily_return = returns.mean() * 100 if not returns.empty else 0.0
+                yearly_return = returns.mean() * 252 * 100 if not returns.empty else 0.0
+                volatility = returns.std() * (252**0.5) * 100 if not returns.empty else 0.0
 
-                    # Isolated DataFrame for Average Daily Return
-                    avg_daily_stock = stock_data[['Close']].copy()
-                    avg_daily_stock['Percent Change'] = avg_daily_stock['Close'].pct_change()
-                    avg_daily_stock.dropna(inplace=True)
-                    avg_daily_return = avg_daily_stock['Percent Change'].mean() * 100
+                # Max profit (DP)
+                prices = close_series.dropna().tolist()
 
-                    # Separate DataFrame for other metrics calculations
-                    new_stock = stock_data.copy()
-                    new_stock['Percent Change'] = new_stock['Close'].pct_change()
-                    new_stock.dropna(inplace=True)
+                def max_profit(prices_list, start_idx, end_idx, memo=None):
+                    if memo is None:
+                        memo = {}
+                    if end_idx <= start_idx:
+                        return 0
+                    if (start_idx, end_idx) in memo:
+                        return memo[(start_idx, end_idx)]
+                    max_profit_val = 0
+                    for i in range(start_idx + 1, end_idx + 1):
+                        profit = prices_list[i] - prices_list[start_idx]
+                        if i + 1 <= end_idx:
+                            profit += max_profit(prices_list, i + 1, end_idx, memo)
+                        max_profit_val = max(max_profit_val, profit)
+                    memo[(start_idx, end_idx)] = max_profit_val
+                    return max_profit_val
 
-                    yearly_return = new_stock['Percent Change'].mean() * 252 * 100
-                    volatility = new_stock['Percent Change'].std() * (252**0.5) * 100  # Annualized volatility
+                max_profit_val = max_profit(prices, 0, len(prices) - 1) if prices else 0.0
 
-                    # Max profit calculation with (Dynamic programming- Top Down Memoization)
-                    prices = stock_data['Close'].dropna().tolist()
-                    start = 0
-                    end = len(prices) - 1
-
-                    def max_profit(prices, start, end, memo=None):
-                        if memo is None:
-                            memo = {}
-                        if end <= start:
-                            return 0
-                        if (start, end) in memo:
-                            return memo[(start, end)]
-                        max_profit_val = 0
-                        for i in range(start + 1, end + 1):
-                            profit = prices[i] - prices[start] + max_profit(prices, i + 1, end, memo)
-                            max_profit_val = max(max_profit_val, profit)
-                        memo[(start, end)] = max_profit_val
-                        return max_profit_val
-
-                    max_profit_val = max_profit(prices, start, end)
-
-                    # Display metrics in columns
-                    col1, col2, col3, col4, col5 = st.columns(5)
-                    col1.metric('Max Profit', f'{max_profit_val:.2f}')
-                    col2.metric(label='Yearly Return', value=f'{yearly_return:.2f}%')
-                    col3.metric('Annualized Volatility', f'{volatility:.2f}%')
-                    col4.metric('Average Daily Return', f'{avg_daily_return:.2f}%')
-                    col5.metric("Market Cap", stock_info.get("marketCap", "N/A"))
-
-                    st.subheader('Stock Information Chart')
-                    st.dataframe(new_stock)
-
-
-                # Company Data tab - display financials
-                with company_data:
+                # Market cap
+                market_cap_raw = stock_info.get("marketCap", None)
+                if market_cap_raw is None:
+                    market_cap_str = "N/A"
+                else:
                     try:
-                       # Display company information header with a logo
-                        st.markdown(f"""
-                        <div class="logo-and-name" style="margin-bottom: 20px;">
-                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                                {company_name} <span style="color: green;">Information</span>
-                            </h2>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        market_cap_str = f"${int(market_cap_raw):,}"
+                    except Exception:
+                        market_cap_str = str(market_cap_raw)
 
-       
-                        col1, col2 = st.columns(2)
-                        col1.metric("Sector", stock_info.get("sector", "N/A"))
-                        col2.metric("Industry", stock_info.get("industry", "N/A"))
-                        st.metric("Website", stock_info.get("website", "N/A"))
+                # ---- METRICS DISPLAY ----
+                mcol1, mcol2, mcol3, mcol4, mcol5 = st.columns(5)
+                mcol1.metric("Max Profit", f"{max_profit_val:.2f}")
+                mcol2.metric("Yearly Return", f"{yearly_return:.2f}%")
+                mcol3.metric("Annualized Volatility", f"{volatility:.2f}%")
+                mcol4.metric("Average Daily Return", f"{avg_daily_return:.2f}%")
+                mcol5.metric("Market Cap", market_cap_str)
 
-                        # Display company bio
-                        if 'longBusinessSummary' in stock_info:
-                            st.subheader('Company Bio')
-                            st.write(stock_info['longBusinessSummary'])
-                        else:
-                            st.write("Company bio is not available.")
+                # ---- INFO TABLE ----
+                st.subheader("Stock Information Chart")
 
-                        # Fetch financial data
-                        stock = yf.Ticker(ticker)
-                        financials = {
-                            "income_statement": stock.financials,
-                            "balance_sheet": stock.balance_sheet,
-                            "cashflow": stock.cashflow,
-                            "calendar": stock.calendar,
-                        }
+                # Extract OHLC safely
+                df_display = df[['Open', 'High', 'Low', 'Close']].dropna().copy()
 
-                        # Display financials
-                        st.header('Company Financials')
+                # If columns are MultiIndex (e.g., ('NVDA','Open')), flatten them
+                if isinstance(df_display.columns, pd.MultiIndex):
+                    df_display.columns = [col[-1] for col in df_display.columns]  # keep only Open/High/Low/Close
+
+                # Reset index -> make Date a column
+                df_display = df_display.reset_index()
+
+                # Rename first column explicitly to "Date"
+                df_display.rename(columns={df_display.columns[0]: "Date"}, inplace=True)
+
+                # Drop any accidental duplicates
+                df_display = df_display.loc[:, ~df_display.columns.duplicated()]
+
+                st.dataframe(df_display)
+
+
+
+
+            # --- Company Data ---
+            with company_data:
+                st.markdown(f"""
+                    <div class="logo-and-name" style="margin-bottom: 20px;">
+                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
+                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                            {company_name} <span style="color: green;">Information</span>
+                        </h2>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                try:
+                    ccol1, ccol2 = st.columns(2)
+                    ccol1.metric("Sector", stock_info.get("sector", "N/A"))
+                    ccol2.metric("Industry", stock_info.get("industry", "N/A"))
+                    st.metric("Website", stock_info.get("website", "N/A"))
+
+                    if 'longBusinessSummary' in stock_info:
+                        st.subheader('Company Bio')
+                        st.write(stock_info['longBusinessSummary'])
+                    else:
+                        st.write("Company bio is not available.")
+
+                    # Fetch financials (cached)
+                    financials = fetch_financials(ticker)
+
+                    st.header('Company Financials')
+                    if not financials["financials"].empty:
                         st.subheader("Income Statement:")
-                        st.dataframe(financials["income_statement"])
+                        st.dataframe(financials["financials"])
+                    else:
+                        st.write("Income Statement: Not available")
 
+                    if not financials["balance_sheet"].empty:
                         st.subheader("Balance Sheet:")
                         st.dataframe(financials["balance_sheet"])
+                    else:
+                        st.write("Balance Sheet: Not available")
 
+                    if not financials["cashflow"].empty:
                         st.subheader("Cashflow Statement:")
                         st.dataframe(financials["cashflow"])
+                    else:
+                        st.write("Cashflow Statement: Not available")
 
-                    except Exception as e:
-                        st.error(f"An error occurred while fetching financials: {e}")
+                except Exception as e:
+                    st.error(f"An error occurred while fetching company data: {e}")
 
-                # Stock News
-                with stock_update:
-                    st.markdown(f"""
-                        <div class="logo-and-name" style="margin-bottom: 20px;">
-                            <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
-                            <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
-                                {company_name} <span style="color: green;">News</span>
-                            </h2>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
+            # --- Stock News ---
+            with stock_update:
+                st.markdown(f"""
+                    <div class="logo-and-name" style="margin-bottom: 20px;">
+                        <img class="logo-img" src="{logo_url}" alt="Company Logo" onerror="this.style.display='none'" style="border-radius: 50%; width: 50px; height: 50px;">
+                        <h2 style="display:inline; vertical-align: middle; margin-left: 10px;">
+                            {company_name} <span style="color: green;">News</span>
+                        </h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                try:
+                    tk = yf.Ticker(ticker)
+                    stock_news = []
                     try:
-                        stock_news = ticker_data.news
-                        if stock_news:
-                            for news in stock_news[:10]:  # Displaying the top 10 news articles
-                                st.write(f"### [{news['title']}]({news['link']})")
-                                st.write(news['publisher'])
-                                readable_date = datetime.utcfromtimestamp(news['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')
-                                st.write(f'Publised: {readable_date}')
-                        else:
-                            st.write("No news articles available for this stock.")
-                    except Exception as e:
-                        st.error(f"An error occurred while fetching stock news: {e}")
+                        stock_news = tk.news or []
+                    except Exception:
+                        stock_news = []
 
-            else:
-                st.warning('No data available for the given ticker and date range. Please check the ticker symbol or date range.')
-
-        except Exception as e:
-            st.error(f'Error fetching data for {ticker}. Please check the ticker symbol or try again later. Error: {str(e)}')
+                    if stock_news:
+                        for news in stock_news[:10]:
+                            title = news.get('title', 'No title')
+                            link = news.get('link', '#')
+                            publisher = news.get('publisher', 'Unknown')
+                            # providerPublishTime sometimes missing
+                            ptime = news.get('providerPublishTime', None)
+                            readable_date = ""
+                            if ptime:
+                                try:
+                                    readable_date = datetime.utcfromtimestamp(int(ptime)).strftime('%Y-%m-%d %H:%M:%S')
+                                except Exception:
+                                    readable_date = str(ptime)
+                            st.write(f"### [{title}]({link})")
+                            st.write(publisher)
+                            if readable_date:
+                                st.write(f'Published: {readable_date}')
+                    else:
+                        st.write("No news articles available for this stock.")
+                except Exception as e:
+                    st.error(f"An error occurred while fetching stock news: {e}")
 
 
 # ------------------------------
@@ -828,6 +859,3 @@ footer = f"""
 </div>
 """
 st.markdown(footer, unsafe_allow_html=True)
-
-
-
