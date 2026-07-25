@@ -776,12 +776,30 @@ with market_overview:
 # Economy (FRED)
 # ------------------------------
 with economy:
-    FRED_API_KEY = 'YOUR_FRED_API_KEY_HERE'  # removed trailing space
+    # Read the FRED key from the environment or .streamlit/secrets.toml.
+    # Never hardcode it: this repo is public, so a committed key is burned the
+    # moment it is pushed. Get one free at
+    # https://fredaccount.stlouisfed.org/apikeys
+    FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
+    if not FRED_API_KEY:
+        try:
+            FRED_API_KEY = st.secrets["FRED_API_KEY"]
+        except Exception:
+            # No secrets.toml present — fall through to the notice below.
+            FRED_API_KEY = ""
+
     fred = None
-    try:
-        fred = Fred(api_key=FRED_API_KEY)
-    except Exception as e:
-        st.error(f"FRED init error: {e}")
+    if not FRED_API_KEY:
+        st.info(
+            "Economic data is disabled: no FRED API key configured. "
+            "Set `FRED_API_KEY` as an environment variable, or add it to "
+            "`.streamlit/secrets.toml`."
+        )
+    else:
+        try:
+            fred = Fred(api_key=FRED_API_KEY)
+        except Exception as e:
+            st.error(f"FRED init error: {e}")
 
     st.markdown(f"""
         <div class="logo-and-name">
