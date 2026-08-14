@@ -1,85 +1,103 @@
 # QuantMaven
 
-QuantMaven is a Streamlit-based web application designed to provide real-time insights into stock markets, technical analysis, and economic indicators. It fetches data from Yahoo Finance and other APIs to deliver comprehensive visualization and analysis tools for investors, analysts, and financial enthusiasts.
+Equity research terminal — price action, fundamentals, a ranked sector board, and
+the macro series everything is priced against, in one Streamlit surface.
 
-## Web Application Link: https://quantmaven.streamlit.app/
+**Live:** https://quantmaven.streamlit.app/
 
-## Features
+---
 
-- **Real-Time Stock Market Analysis:**
-  - Fetch stock data for specific tickers and date ranges.
-  - Real-time price charts and technical indicators (e.g., Moving Averages, Bollinger Bands, RSI).
-  - Historical performance data.
+## Run it locally
 
-- **Company Insights:**
-  - Overview of companies, including sector, industry, and key statistics.
-  - Display of relevant company news.
+Double-click `run.bat`, or from a terminal in the project folder:
 
-- **S&P 500 Market Overview:**
-  - Metrics and performance visualization with moving averages.
-  - Analysis of the overall S&P 500 index.
-
-- **Economic Insights and Indicators:**
-  - Integration with FRED API for GDP, interest rates, CPI (inflation), unemployment rates, and other macroeconomic data.
-
-## Prerequisites
-
-- **Python Version**: 3.12.6
-- **Required Libraries**: Listed in `requirements.txt`
-
-## Getting Started
-
-### 1. Clone the repository:
 ```bash
-git clone https://github.com/LouisMiguelBernal/QuantMaven.git
-cd QuantMaven
+run.bat
 ```
 
-### 2. Create a virtual environment (optional):
+That creates a virtual environment on first run, installs the dependencies, and
+opens the app at **http://localhost:8501**. Subsequent runs skip straight to launch.
+
+Prefer to drive it yourself:
+
 ```bash
-python -m venv env
-source env/bin/activate  # For Unix/macOS
-env\Scripts\activate     # For Windows
+python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt && streamlit run QuantMaven.py
 ```
 
-### 3. Install dependencies:
+---
+
+## What's in it
+
+**Dashboard** — candlesticks with volume, 50/200 SMAs, Bollinger bands and a
+14-period RSI. Six headline statistics across the top: last close with the daily
+move, period return, annualised volatility and return, RSI with its regime, and
+market cap. Below that, four sub-tabs: session statistics, company profile and
+valuation multiples, the three financial statements as reported, and recent
+headlines.
+
+**Leaderboard** — one bellwether per GICS sector, each with a sparkline, ranked by
+mean daily return, period return, or price. Loading is behind a button because it
+costs ten network round-trips.
+
+**Market** — the S&P 500 with the same indicator set, plus a drawdown series.
+
+**Economy** — GDP, the federal funds rate, CPI and unemployment from FRED, with
+the latest reading and change for each.
+
+Any view can be linked to directly: `?ticker=NVDA` seeds the ticker field.
+
+---
+
+## Configuration
+
+The Economy tab needs a free [FRED API key](https://fredaccount.stlouisfed.org/apikeys).
+Everything else works without configuration.
+
+Set it as an environment variable:
+
 ```bash
-pip install -r requirements.txt
+set FRED_API_KEY=your_key_here
 ```
 
-### 4. Run the application:
-```bash
-streamlit run QuantMaven.py
-```
+Or copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and fill it
+in. That file is gitignored — never commit a key to a public repository.
 
-## Directory Structure
+Without a key the app runs normally and the Economy tab explains what is missing.
+
+---
+
+## Layout
 
 ```
 QuantMaven/
-├── assets/                # Directory for assets (e.g., videos, images)
-├── LICENSE                # Project license file
-├── QuantMaven.py          # Main Streamlit application file
-├── README.md              # Project README file
-└── requirements.txt       # Python dependencies file
+├── .streamlit/
+│   ├── config.toml              Base theme
+│   └── secrets.toml.example     Template for the FRED key
+├── assets/                      Logo and media
+├── QuantMaven.py                The application
+├── theme.py                     Shared design system
+├── requirements.txt
+└── run.bat                      One-command local launch
 ```
 
-## Usage
+`theme.py` is shared verbatim with [DeepSP](https://github.com/LouisMiguelBernal/DeepSP)
+and [GiftxAI](https://github.com/LouisMiguelBernal/GiftxAI) — one visual language,
+one accent hue per project. Edit it in one place and copy it to the others.
 
-1. **Stock Data Input**: Enter the stock ticker symbol and date range.
-2. **Analysis Tabs**:
-   - **Trading Dashboard**: View stock charts, price movements, and indicators.
-   - **Market Overview**: Get insights into S&P 500 trends.
-   - **Economic Insights**: Access macroeconomic indicators and trends.
+---
 
-## Contributing
+## Notes
 
-Contributions are welcome! Please fork the repository, create a new branch, and submit a pull request with your enhancements.
+Market data comes from Yahoo Finance through `yfinance`, which is an unofficial
+API — occasional gaps and schema changes are normal, and the app degrades to a
+message rather than a traceback when a request comes back empty.
+
+Research and educational use only. Nothing here is investment advice.
 
 ## License
 
-This project is licensed under the Apache-2.0 License. See the [LICENSE](LICENSE) file for details.
+Apache-2.0. See [LICENSE](LICENSE).
 
 ## Contact
 
-For inquiries, feedback, or support, please reach out to [Louis Miguel Bernal](miguellouis.work@gmail.com).
-
+[Louis Miguel Bernal](mailto:miguellouis.work@gmail.com)
