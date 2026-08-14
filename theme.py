@@ -125,6 +125,8 @@ html, body, [data-testid="stAppViewContainer"] {{
 
 [data-testid="stHeader"] {{ background: transparent; }}
 #MainMenu, footer, [data-testid="stDecoration"] {{ visibility: hidden; }}
+/* The Deploy button and running-man belong to Streamlit's chrome, not the app. */
+[data-testid="stToolbar"], [data-testid="stStatusWidget"] {{ display: none; }}
 
 .block-container {{
   padding-top: 2.4rem;
