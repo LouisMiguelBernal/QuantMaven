@@ -1,6 +1,7 @@
-fredapi==0.5.2
-pandas==2.2.3
-plotly==5.24.0
-Requests==2.32.3
-streamlit==1.38.0
-yfinance>=0.1.70
+streamlit>=1.40
+pandas>=2.2
+numpy>=1.26
+plotly>=5.24
+yfinance>=0.2.50
+fredapi>=0.5.2
+requests>=2.32
