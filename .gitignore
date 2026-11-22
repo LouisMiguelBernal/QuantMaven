@@ -1,0 +1,84 @@
+# --- Secrets: never commit ---
+.streamlit/secrets.toml
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- dependencies / environments
+node_modules/
+*.pyc
+
+# --- build output / caches
+.next/
+.nuxt/
+.turbo/
+.cache/
+.mypy_cache/
+.ruff_cache/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+*.log
+
+# --- secrets / local config
+*.env
+!.env.template
+!.env.sample
+!env.template
+*.keystore
+*.jks
+id_rsa*
+id_ed25519*
+credentials*.json
+client_secret*.json
+token.json
+*service-account*.json
+settings.local.json
+
+# --- local data
+*.db
+*.sqlite
+*.sqlite3
+*-wal
+*-shm
+*.db-journal
+*.bak
+*.bak-*
+backups/
+
+# --- binaries
+*.exe
+*.msi
+*.dll
+*.pdb
+*.asar
+*.blockmap
+
+# --- OS / editor
+desktop.ini
+~$*
